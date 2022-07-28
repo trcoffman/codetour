@@ -1,0 +1,22 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Explain the feature",
+  "steps": [
+    {
+      "file": "src/recorder/commands.ts",
+      "description": "This is where we add the code so that users can choose this option for versioning their tours.",
+      "line": 876
+    },
+    {
+      "file": "src/utils.ts",
+      "description": "This is where we handle the new tour versioning strategy.",
+      "line": 85
+    },
+    {
+      "file": "src/git.ts",
+      "description": "we had to expose more of the vscode git extension API for us to use.",
+      "line": 42
+    }
+  ],
+  "ref": "last-edit"
+}
