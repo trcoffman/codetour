@@ -82,7 +82,24 @@ export async function getStepFileUri(
     if (api && ref && ref !== "HEAD") {
       const repo = api.getRepository(uri);
 
-      if (
+      if (ref === "last-edit") {
+        console.log(JSON.stringify(store.activeTour));
+
+        if (repo && repo.state.HEAD) {
+          const path =
+            "/Users/tyler.coffman/github/codetour/.tours/testtour.tour";
+          const logResults = await repo.log({ maxEntries: 1, path });
+          const commit = logResults[0];
+          console.log(JSON.stringify(commit));
+          console.log(JSON.stringify(repo.state.HEAD.commit));
+          if (repo.state.HEAD.commit !== commit.hash) {
+            console.log(">>>>> branch true");
+            uri = await api.toGitUri(uri, commit.hash);
+          } else {
+            console.log(">>>>> branch false");
+          }
+        }
+      } else if (
         repo &&
         repo.state.HEAD &&
         repo.state.HEAD.name !== ref && // The tour refs the user's current branch
