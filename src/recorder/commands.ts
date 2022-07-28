@@ -654,7 +654,7 @@ export function registerRecorderCommands() {
         prompt: `Enter the title for this tour step`,
         value: step.title || ""
       });
-      
+
       if (typeof response === "undefined") {
         return;
       } else if (response) {
@@ -662,11 +662,11 @@ export function registerRecorderCommands() {
       } else {
         delete step.title;
       }
-      
+
       saveTour(node.tour);
     }
   );
-  
+
   vscode.commands.registerCommand(
     `${EXTENSION_NAME}.changeTourStepIcon`,
     async (node: CodeTourStepNode) => {
@@ -675,7 +675,7 @@ export function registerRecorderCommands() {
         prompt: `Enter the icon for this tour step`,
         value: step.icon || ""
       });
-      
+
       if (typeof response === "undefined") {
         return;
       } else if (response) {
@@ -871,6 +871,13 @@ export function registerRecorderCommands() {
         label: "$(git-commit) Current commit",
         description: "Keep the tour associated with a specific commit",
         ref: repository.state.HEAD ? repository.state.HEAD.commit! : "",
+        alwaysShow: true
+      },
+      {
+        label: "$(git-commit) Last commit that modified the tour",
+        description:
+          "Keep the tour associated with the most recent commit that modified the tour",
+        ref: "last-edit",
         alwaysShow: true
       }
     ];
