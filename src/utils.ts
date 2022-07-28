@@ -91,9 +91,11 @@ export async function getStepFileUri(
             maxEntries: 1,
             path: activeTourPath
           });
-          const commit = logResults[0];
-          if (repo.state.HEAD.commit !== commit.hash) {
-            uri = await api.toGitUri(uri, commit.hash);
+          if (logResults.length > 0) {
+            const commit = logResults[0];
+            if (repo.state.HEAD.commit !== commit.hash) {
+              uri = await api.toGitUri(uri, commit.hash);
+            }
           }
         }
       } else if (
