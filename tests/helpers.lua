@@ -26,6 +26,7 @@ function M.reset()
   end
 
   pcall(vim.cmd, "stopinsert")
+  vim.o.scrolloff = 0
   for _, win in ipairs(vim.api.nvim_list_wins()) do
     if vim.api.nvim_win_get_config(win).relative ~= "" then
       pcall(vim.api.nvim_win_close, win, true)

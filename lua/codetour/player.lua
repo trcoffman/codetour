@@ -22,6 +22,7 @@ local group = vim.api.nvim_create_augroup("codetour_player", { clear = true })
 ---@field float? integer
 ---@field float_buf? integer buffer showing the description (the step window's or the page)
 ---@field page? boolean the step is shown as a page in `win` instead of a step window
+---@field cursor? integer[] 0-based row and column where the cursor goes when the step is shown
 ---@field mode? "preview"|"edit"
 ---@field actions table[] link actions of the step window
 ---@field hidden? boolean
@@ -613,6 +614,15 @@ local function create_preview_buffer(active)
   return buf
 end
 
+-- The window's 'scrolloff', limited like Neovim limits it in small windows.
+local function scrolloff(win)
+  local so = vim.api.nvim_get_option_value("scrolloff", { win = win })
+  if so < 0 then
+    so = vim.o.scrolloff
+  end
+  return math.max(0, math.min(so, math.floor((vim.api.nvim_win_get_height(win) - 1) / 2)))
+end
+
 local function float_geometry(win, float_buf, mode, float)
   local info = vim.fn.getwininfo(win)[1]
   local text_width = math.max(1, info.width - info.textoff)
@@ -630,7 +640,10 @@ local function float_geometry(win, float_buf, mode, float)
   if mode == "edit" then
     height = math.max(height + 1, 5)
   end
-  local max_height = math.min(config.get().player.max_height, info.height - border_rows() - 1)
+  -- Leave room for the step's line, and for 'scrolloff' above it: otherwise
+  -- Neovim scrolls the window (and the step window off the screen) to keep
+  -- that many lines above the cursor.
+  local max_height = math.min(config.get().player.max_height, info.height - border_rows() - 1 - scrolloff(win))
   return width, math.max(1, math.min(height, math.max(1, max_height)))
 end
 
@@ -870,10 +883,13 @@ local function reveal(step)
   -- line, so add the step window's rows explicitly.
   local float_rows = view.height and (view.height + border_rows()) or 0
 
+  local so = scrolloff(win)
   local anchor, target
   local block = rows(block_top, line) + float_rows
   if block <= height then
-    anchor, target = block_top, math.floor((height - block) / 2)
+    -- Centered, but at least 'scrolloff' rows from the top when there's room.
+    anchor = block_top
+    target = math.min(math.max(math.floor((height - block) / 2), so), height - block)
   else
     anchor, target = line, math.max(0, height - rows(line, line) - float_rows)
   end
@@ -888,8 +904,30 @@ local function reveal(step)
     top = top - 1
   end
 
+  -- The cursor goes to the start of the step (see place_cursor()) unless
+  -- that's scrolled out of view or closer than 'scrolloff' to the top of the
+  -- window: then Neovim would scroll to make room around the cursor, and push
+  -- the step window off the screen. Use the first line of the step that's
+  -- far enough from the top instead.
+  local function comfortable(lnum)
+    -- At the top of the buffer there's nothing to scroll to.
+    return lnum >= top and (top == 0 or lnum == top and so == 0 or lnum > top and rows(top, lnum - 1) >= so)
+  end
+  local lnum, col = unpack(view.cursor or { line, 0 })
+  if not comfortable(lnum) then
+    lnum = line
+    for l = math.max(block_top, top), line do
+      if comfortable(l) then
+        lnum = l
+        break
+      end
+    end
+    local text = vim.api.nvim_buf_get_lines(view.buf, lnum, lnum + 1, false)[1] or ""
+    col = #text:match("^%s*")
+  end
+
   vim.api.nvim_win_call(win, function()
-    vim.fn.winrestview({ topline = top + 1, leftcol = 0 })
+    vim.fn.winrestview({ topline = top + 1, leftcol = 0, lnum = lnum + 1, col = col, curswant = col })
   end)
 end
 
@@ -908,6 +946,7 @@ local function place_cursor(step)
     local text = vim.api.nvim_buf_get_lines(view.buf, row, row + 1, false)[1] or ""
     col = #text:match("^%s*")
   end
+  view.cursor = { row, col }
   vim.api.nvim_win_set_cursor(view.win, { row + 1, col })
   vim.api.nvim_win_call(view.win, function()
     vim.cmd("silent! normal! zv")

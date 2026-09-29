@@ -384,6 +384,8 @@ Defaults: >lua
       player = {
         focus = true,      -- move the cursor into the step window
         max_width = 100,
+        -- Also limited by the code window: the step's line and 'scrolloff'
+        -- lines above it stay visible, the rest of a long step scrolls.
         max_height = 20,
         border = "rounded",
         -- render-markdown.nvim config for step windows (they stay rendered

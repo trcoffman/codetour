@@ -372,6 +372,49 @@ describe("codetour.player", function()
     assert.is_false(vim.bo[buf].modified)
   end)
 
+  describe("with long steps", function()
+    local long = ("Paragraph.\n\n"):rep(8)
+
+    local function start(steps)
+      local t = require("codetour.tourfile").parse(helpers.tour({ title = "Long", steps = steps }), root .. "/.tours/long.tour")
+      actions.start_tour(t)
+      -- Enter the code window (that makes Neovim apply 'scrolloff') and let
+      -- the step window settle.
+      vim.api.nvim_set_current_win(view().win)
+      vim.wait(200)
+      return view()
+    end
+
+    for _, so in ipairs({ 0, 10 }) do
+      it(("keeps the end of a selection that doesn't fit and its step window on screen (scrolloff=%d)"):format(so), function()
+        vim.o.scrolloff = so
+        local v = start({
+          {
+            file = "src/app.js",
+            selection = { start = { line = 50, character = 1 }, ["end"] = { line = 101, character = 10 } },
+            description = long,
+          },
+        })
+        assert.equals(100, v.line)
+        local top, cursor = vim.fn.line("w0"), vim.fn.line(".")
+        assert.equals(101, vim.fn.line("w$"))
+        assert.is_true(cursor >= top + so and cursor <= 101)
+        assert.is_false(float_config().hide)
+        assert.is_true(v.height > 1)
+        assert.equals(v.height, vim.api.nvim_win_get_height(v.float))
+      end)
+    end
+
+    it("leaves 'scrolloff' lines above the step's line", function()
+      vim.o.scrolloff = 10
+      local v = start({ { file = "src/app.js", line = 60, description = long } })
+      assert.equals(60, vim.fn.line("."))
+      assert.is_true(60 - vim.fn.line("w0") >= 10)
+      assert.is_false(float_config().hide)
+      assert.equals(v.height, vim.api.nvim_win_get_height(v.float))
+    end)
+  end)
+
   it("opens steps that use a file:// URI", function()
     local t = require("codetour.tourfile").parse(
       helpers.tour({ title = "Uri", steps = { { uri = vim.uri_from_fname(root .. "/src/app.js"), line = 3, description = "" } } }),
