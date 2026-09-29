@@ -4,6 +4,42 @@ CodeTour is a Visual Studio Code extension, which allows you to record and play 
 
 <img width="800px" src="https://user-images.githubusercontent.com/116461/76165260-c6c00500-6112-11ea-9cda-0a6cb9b72e8f.gif" />
 
+## Neovim
+
+This repository also contains a Neovim plugin with the same features as the VS Code extension. It reads and writes the same `*.tour` files (in the same format), so a team can take and edit tours from either editor. Each step opens its file at the right line and shows the description in a window anchored below that line, rendered by [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) (or markview.nvim) when installed.
+
+Requires Neovim 0.10+. With [lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{
+  "trcoffman/codetour",
+  dependencies = { "MeanderingProgrammer/render-markdown.nvim" },
+  cmd = "CodeTour",
+  event = "VeryLazy", -- for tour markers and the "take a tour?" prompt
+  opts = {},
+  keys = {
+    { "<leader>ts", "<cmd>CodeTour start<cr>", desc = "Start a tour" },
+    { "<leader>tt", "<cmd>CodeTour tree<cr>", desc = "Toggle tour tree" },
+    { "<leader>tn", "<cmd>CodeTour next<cr>", desc = "Next tour step" },
+    { "<leader>tp", "<cmd>CodeTour prev<cr>", desc = "Previous tour step" },
+  },
+}
+```
+
+| VS Code | Neovim |
+| --- | --- |
+| `CodeTour: Start Tour` / tree view / status bar | `:CodeTour start [tour] [step]`, `:CodeTour tree`, `require("codetour").status()` |
+| Comment thread navigation | `n` / `p` / `<CR>` (open link) / `q` (hide) / `Q` (end) in the step window, `:CodeTour next`, `prev`, `goto`, `resume`, `end` |
+| `CodeTour: Record Tour` (and "Save tour as...") | `:CodeTour record [title \| path.tour]` |
+| Gutter "+" / "Add CodeTour Step" | `:CodeTour add_step` (cursor line, or a visual selection), `add_content_step`, `add_directory_step` |
+| Edit, move, delete, retitle, change ref, make primary, export | `:CodeTour edit`, `move_step_up`, `delete_step`, `change_title`, `change_ref`, `make_primary`, `export`, ... (or keys in the tree) |
+| Tour markers + hover "Start Tour" | Gutter signs + `:CodeTour start_at_marker` |
+| Open Tour File / URL | `:CodeTour open_file`, `:CodeTour open_url` |
+| `codetour.*` settings | `setup()` options; a workspace's `.vscode/settings.json` is honored too |
+| Extension API + `onDidStartTour` / `onDidEndTour` | `require("codetour")` API + `User CodeTourStepChanged` / `CodeTourEnded` autocommands |
+
+Tours can target a single editor with `"when": "isNeovim"` (or `"!isNeovim"`). See [`:help codetour`](doc/codetour.txt) for the full documentation, and run `make test` to run the plugin's test suite.
+
 ## Getting Started
 
 In order to get started, install the [CodeTour extension](https://aka.ms/codetour), and then following one of the following guides, depending on whether you want to record or play back a tour:

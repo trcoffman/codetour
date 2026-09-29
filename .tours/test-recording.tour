@@ -1,0 +1,15 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Test Recording",
+  "steps": [
+    {
+      "title": "Introduction",
+      "description": "This is the first tour I've recorded in CodeTour"
+    },
+    {
+      "file": "Makefile",
+      "description": "This is another step",
+      "line": 7
+    }
+  ]
+}

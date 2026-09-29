@@ -11,3 +11,9 @@ webpack.config.js
 .git/**
 .github/**
 **/*.svg
+lua/**
+plugin/**
+doc/**
+tests/**
+.tests/**
+Makefile

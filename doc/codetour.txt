@@ -1,0 +1,482 @@
+*codetour.txt*  Record and play back guided tours of codebases
+
+==============================================================================
+CONTENTS                                                   *codetour-contents*
+
+  1. Introduction ............................... |codetour-introduction|
+  2. Requirements ............................... |codetour-requirements|
+  3. Installation ............................... |codetour-installation|
+  4. Taking tours ............................... |codetour-playing|
+  5. Recording tours ............................ |codetour-recording|
+  6. Commands ................................... |codetour-commands|
+  7. The tour tree .............................. |codetour-tree|
+  8. Tour markers ............................... |codetour-markers|
+  9. Tour files ................................. |codetour-tour-files|
+ 10. CodeTour-flavored markdown ................. |codetour-markdown|
+ 11. Configuration .............................. |codetour-configuration|
+ 12. Lua API and events ......................... |codetour-api|
+ 13. Highlights ................................. |codetour-highlights|
+ 14. Differences from VS Code ................... |codetour-vscode|
+
+==============================================================================
+1. INTRODUCTION                                        *codetour-introduction*
+
+CodeTour lets you record and play back guided walkthroughs of a codebase. A
+tour is a sequence of steps, each attached to a file and line, a text
+selection, a directory, or nothing at all (a "content" step), with a markdown
+description.
+
+This plugin is a Neovim port of the CodeTour VS Code extension. It reads and
+writes the same `*.tour` files, so the same tours can be taken and edited from
+either editor.
+
+==============================================================================
+2. REQUIREMENTS                                        *codetour-requirements*
+
+- Neovim 0.10 or newer.
+- `git`, for tours that are pinned to a git ref.
+- `curl`, for |:CodeTour| open_url.
+- Recommended: render-markdown.nvim (or markview.nvim) to render step
+  descriptions. Without one, Neovim's treesitter markdown highlighting is
+  used.
+- Optional: mini.icons or nvim-web-devicons for file icons in the tree.
+
+Run `:checkhealth codetour` to verify your setup.
+
+==============================================================================
+3. INSTALLATION                                        *codetour-installation*
+
+With lazy.nvim: >lua
+    {
+      "trcoffman/codetour",
+      dependencies = { "MeanderingProgrammer/render-markdown.nvim" },
+      cmd = "CodeTour",
+      event = "VeryLazy",
+      opts = {},
+      keys = {
+        { "<leader>ts", "<cmd>CodeTour start<cr>", desc = "Start a tour" },
+        { "<leader>tt", "<cmd>CodeTour tree<cr>", desc = "Toggle tour tree" },
+        { "<leader>tn", "<cmd>CodeTour next<cr>", desc = "Next tour step" },
+        { "<leader>tp", "<cmd>CodeTour prev<cr>", desc = "Previous step" },
+        { "<leader>tr", "<cmd>CodeTour resume<cr>", desc = "Resume tour" },
+        { "<leader>te", "<cmd>CodeTour end<cr>", desc = "End tour" },
+        { "<leader>ta", "<cmd>CodeTour add_step<cr>", desc = "Add step" },
+        { "<leader>ta", ":CodeTour add_step<cr>", mode = "x" },
+      },
+    }
+<
+Calling `setup()` is optional; it only changes the defaults
+(|codetour-configuration|). Load the plugin at startup (e.g. `VeryLazy`) if
+you want tour markers and the "this workspace has tours" prompt.
+
+The plugin doesn't create global mappings. The keys above mirror the VS Code
+keybindings (next, previous, end, start); pick whatever suits you.
+
+==============================================================================
+4. TAKING TOURS                                             *codetour-playing*
+
+Tours are discovered in the current working directory (see
+|codetour-tour-files|). The first time you open a workspace that has tours
+you're asked whether you want to take one.
+
+Start a tour with `:CodeTour start` (pick from a list), `:CodeTour start
+{name} [step]`, from the tree (|codetour-tree|) or from a marker
+(|codetour-markers|).
+
+Each step opens its file at the step's line and shows the description in a
+window right below that line. Space is reserved underneath the line so the
+window never hides the code. The window is hidden while its line is scrolled
+out of view or another buffer is shown, and comes back when you return.
+
+The step window ends with navigation links, like the VS Code comment thread:
+"Previous", "Next", "Finish Tour", and "Previous Tour"/"Next Tour" for
+linked tours (|codetour-linking|).
+
+                                                        *codetour-player-keys*
+Mappings inside the step window (see `player.keymaps`):
+
+  `n`        Next step
+  `p`        Previous step
+  `<CR>`     Activate the link under the cursor
+  `<Tab>`    Jump to the next link (`<S-Tab>`: previous link)
+  `e`        Edit the tour at this step
+  `q`        Hide the step window (the tour stays active)
+  `Q`        End the tour
+  `<Esc>`    Go back to the code window
+
+By default the cursor moves into the step window whenever a step is shown
+(`player.focus`), so these keys work right away. Use `:CodeTour resume` to
+show the current step again after exploring other files, and `:CodeTour
+links` to pick one of the step's links.
+
+Progress is saved as you move forward. Completed steps and tours get a check
+mark in the tree. `:CodeTour reset_progress [tour]` forgets it.
+
+The statusline component `require("codetour").status()` returns e.g.
+"CodeTour: #2 of 5 (Setup)" (see |codetour-api|).
+
+==============================================================================
+5. RECORDING TOURS                                        *codetour-recording*
+
+`:CodeTour record [title]` creates a new tour in `.tours/` (or
+`custom_tour_directory`) and starts recording it. If the title ends in
+".tour" it's treated as a path instead, which saves the tour outside of the
+workspace; when that recording ends you're offered to export it
+(|codetour-export|). In a git repository you're asked which ref the tour is
+pinned to (unless `record_mode` is "pattern"): none, the current branch, the
+current commit, or a tag.
+
+While recording:
+
+- `:CodeTour add_step` adds a step for the cursor line. With a range or from
+  Visual mode (`:'<,'>CodeTour add_step`) the step is attached to the
+  selected text instead.
+- `:CodeTour add_content_step [title]` adds a step that isn't attached to a
+  file (e.g. an introduction).
+- `:CodeTour add_directory_step [dir]` adds a step for a directory (the
+  current netrw/oil directory by default).
+
+New steps are inserted after the current step. The description is edited in
+the step window: write it with `:w` to save the step, or close the window
+with `:q!` to discard it. Typing `command:` offers the well-known command
+links (also available with |i_CTRL-X_CTRL-O|).
+
+In "pattern" record mode a step is anchored to the content of its line
+(when that line is unique in the file) instead of the line number, so it
+survives edits above it.
+
+To change an existing tour, use `:CodeTour edit [tour]` (or `e` in the tree
+or step window). The current step is shown in the editor; `:w` saves it and
+switches back to the preview, `:CodeTour preview` stops editing without
+saving. Other edits: |:CodeTour| move_step_up, move_step_down, delete_step,
+change_step_title, change_step_icon, change_step_line,
+change_step_selection, change_title, change_description, change_ref,
+make_primary, unmake_primary, delete_tour and export.
+
+                                                             *codetour-export*
+`:CodeTour export [path]` writes a copy of the tour with the contents of
+every file embedded, so it can be played back without the code (e.g. shared
+as a gist). Steps of such tours open in a buffer holding the embedded
+contents; writing that buffer saves the contents back into the tour.
+
+==============================================================================
+6. COMMANDS                                                *codetour-commands*
+
+                                                                   *:CodeTour*
+:CodeTour                       Toggle the tour tree.
+
+Taking tours ~
+:CodeTour start [tour] [step]   Start a tour (by title or file name) at a
+                                1-based step. Without a tour, pick one.
+:CodeTour next                  Go to the next step.
+:CodeTour prev                  Go to the previous step.
+:CodeTour goto {step}           Go to a 1-based step.
+:CodeTour resume                Show the current step again.
+:CodeTour end                   End the tour (alias: `stop`).
+:CodeTour links                 Pick one of the current step's links.
+:CodeTour start_at_marker       Start the tour step on the cursor line.
+:CodeTour open_file [path]      Take a tour from a `*.tour` file.
+:CodeTour open_url [url]        Take a tour from a URL (read-only).
+:CodeTour tree                  Toggle the tour tree.
+:CodeTour show_markers          Show tour markers.
+:CodeTour hide_markers          Hide tour markers.
+:CodeTour toggle_markers        Toggle tour markers.
+:CodeTour reset_progress [tour] Reset the progress of a tour (or all).
+:CodeTour refresh               Re-discover the workspace's tours.
+
+Recording and editing ~
+:CodeTour record [title|path]   Record a new tour.
+:[range]CodeTour add_step       Add a step for the cursor line or range.
+:CodeTour add_content_step [title]
+                                Add a step without a file.
+:CodeTour add_directory_step [dir]
+                                Add a step for a directory.
+:CodeTour edit [tour]           Edit a tour (the active one by default).
+:CodeTour preview               Stop editing the current step.
+:CodeTour delete_step [step]    Delete the current (or given) step.
+:CodeTour move_step_up          Move the current step up.
+:CodeTour move_step_down        Move the current step down.
+:CodeTour change_step_title [title]
+                                Change (or, when empty, remove) the title.
+:CodeTour change_step_icon [icon]
+                                Change the step icon shown in the tree.
+:CodeTour change_step_line [line]
+                                Change the line (empty uses the selection or
+                                the end of the file).
+:[range]CodeTour change_step_selection
+                                Set the selection to [range]; without a range
+                                the selection is removed.
+:CodeTour change_title [title]  Rename the tour (updates `nextTour` links).
+:CodeTour change_description [text]
+                                Change the tour description.
+:CodeTour change_ref [tour]     Change the git ref the tour is pinned to.
+:CodeTour make_primary [tour]   Make the tour the primary tour.
+:CodeTour unmake_primary [tour] Stop the tour from being primary.
+:CodeTour delete_tour [tour]    Delete the tour file.
+:CodeTour export [path]         Export the tour with files embedded.
+
+Commands that act on "the tour" use the active tour, or ask which tour to use
+when none is active.
+
+To start a tour when Neovim starts (like VS Code's `vscode://` links): >sh
+    nvim +"CodeTour start getting-started 3"
+<
+==============================================================================
+7. THE TOUR TREE                                               *codetour-tree*
+
+`:CodeTour tree` opens a side panel listing the workspace's tours (and the
+active tour, if it comes from elsewhere). Expand a tour to see its steps. The
+tree follows the active step and shows which tours and steps you completed.
+
+Mappings (see `tree.keymaps`):
+
+  `<CR>` `o`  Expand/collapse a tour; start the tour at a step
+  `s`         Start the tour (at the step under the cursor)
+  `S`         End the active tour
+  `u`         Resume the active tour
+  `e`         Edit the tour (at the step)
+  `v`         Stop editing the current step
+  `a`         Add a content step (while recording)
+  `r`         Rename the tour or step
+  `cd`        Change the tour description
+  `cr`        Change the tour's git ref
+  `ci`        Change the step icon
+  `p`         Make/unmake the primary tour
+  `d`         Delete the tour or step (in Visual mode: all selected ones)
+  `x`         Export the tour
+  `J` `K`     Move the step down/up
+  `<Tab>`     Preview the description
+  `X`         Reset the tour's progress
+  `m`         Toggle tour markers
+  `+`         Record a new tour
+  `O` `U`     Open a tour file / URL
+  `R`         Re-discover tours
+  `q`         Close the tree
+  `?`         Show the mappings
+
+Step icons (`step.icon`) are shown when they fit in two cells (e.g. an emoji
+or a Nerd Font glyph).
+
+==============================================================================
+8. TOUR MARKERS                                             *codetour-markers*
+
+Lines that belong to a step of any tour in the workspace get a sign
+(`markers.sign`) so you can discover tours while reading code. Use
+`:CodeTour start_at_marker` on such a line to start the tour at that step.
+Turn markers off with `show_markers = false` or `:CodeTour hide_markers`.
+
+==============================================================================
+9. TOUR FILES                                            *codetour-tour-files*
+
+Tours are JSON files discovered in every workspace folder (`roots`, the
+current directory by default):
+
+- any file in `.tours/`, `.vscode/tours/`, `.github/tours/` or the
+  `custom_tour_directory`, including subdirectories;
+- `.tour`, `main.tour` and `.vscode/main.tour`.
+
+Files are rewritten in the format the VS Code extension uses (2-space
+indentation, keys in their original order), so saving a tour from Neovim
+doesn't produce noise in diffs. A tour has these properties:
+
+  `title`        Required. The tour's name.
+  `description`  Shown in the tree.
+  `steps`        Required. The list of steps.
+  `ref`          Git branch, tag or commit the tour is pinned to. Files are
+                 shown as of that ref (read-only) unless it's checked out.
+  `isPrimary`    The tour to start by default.
+  `nextTour`     Title of the tour to continue with.
+  `stepMarker`   Marker used to locate steps in comments (see below).
+  `when`         Condition for showing the tour (see below).
+
+A step has a `description` and, optionally, a `title`, an `icon`, and one of
+`file`, `directory`, `uri` or `contents` (embedded file contents), plus:
+
+  `line`         1-based line.
+  `selection`    `{ start: { line, character }, end: {...} }`, 1-based, with
+                 VS Code (UTF-16) columns.
+  `pattern`      JavaScript regular expression locating the line when `line`
+                 isn't set.
+  `view`         View to focus (see `views`).
+  `commands`     Commands to run when the step is shown (see `commands`).
+
+                                                            *codetour-linking*
+Tours titled with a number ("1 - Intro", "#2 - Tree") are linked in order:
+the last step offers the next tour and the first step the previous one. A
+tour titled "1 - ..." is also treated as the primary tour. `nextTour` links
+tours explicitly.
+
+                                                         *codetour-stepmarker*
+Steps of numbered tours (or tours with a `stepMarker`) that have a `file` but
+no `line` are located by a comment such as `// CT1.3 - Title` (`CT` +
+tour number + "." + step number). The text after the marker becomes the step
+title.
+
+                                                               *codetour-when*
+`when` is evaluated like a JavaScript expression with these variables:
+`isLinux`, `isMac`, `isWindows`, `isWeb` (always false) and `isNeovim`
+(always true here, undefined in VS Code). For example `"when": "isNeovim"`
+only shows a tour in Neovim, and `"when": "!isNeovim"` only in VS Code.
+
+==============================================================================
+10. CODETOUR-FLAVORED MARKDOWN                             *codetour-markdown*
+
+Step descriptions are markdown with these additions:
+
+  `>> npm test`         Runs the command in a "CodeTour" terminal.
+  `[#3]`                Link to step 3 (`[text][#3]` to change the text).
+  `[Tour title]`        Link to another tour, `[Tour title#2]` to one of its
+                      steps (`[text][Tour title]` to change the text).
+  `[text](./src/a.js)`  Opens a workspace file (relative to the root).
+  `![alt](./img.png)`   Images are opened with |vim.ui.open()|.
+  "```lang" fences      Get an "Insert Code" link that inserts the code at
+                      the step's line (or replaces its selection).
+  `[text](command:id?["arg"])`
+                      Runs a command (see below).
+
+                                                            *codetour-command*
+Commands used in links and `step.commands` are VS Code command IDs with
+optional JSON arguments. These work out of the box: all `codetour.*` commands
+(e.g. `codetour.navigateToStep?2`, `codetour.startTourByTitle?["Setup"]`,
+`codetour.sendTextToTerminal?["make"]`), `vscode.open?["https://..."]`,
+`workbench.action.tasks.build` (runs |:make|) and the terminal commands. Map
+others with the `commands` option: >lua
+    commands = {
+      ["workbench.action.tasks.test"] = "!make test",
+      ["myExtension.doThing"] = function(arg) ... end,
+    }
+<
+==============================================================================
+11. CONFIGURATION                                     *codetour-configuration*
+
+Defaults: >lua
+    require("codetour").setup({
+      -- Ask to start a tour the first time a workspace with tours is opened.
+      prompt_for_workspace_tours = true,
+      -- How new steps are anchored: "lineNumber" or "pattern".
+      record_mode = "lineNumber",
+      -- Show gutter markers on lines that belong to a tour.
+      show_markers = true,
+      -- Extra workspace-relative directory for tours (e.g. "docs/tours").
+      custom_tour_directory = nil,
+      -- Also read `codetour.*` settings from .vscode/settings.json.
+      vscode_settings = true,
+      -- Workspace folders: a list or a function (default: the cwd).
+      roots = nil,
+      -- Where progress is stored.
+      state_file = vim.fn.stdpath("data") .. "/codetour/state.json",
+      player = {
+        focus = true,      -- move the cursor into the step window
+        max_width = 100,
+        max_height = 20,
+        border = "rounded",
+        keymaps = {        -- false disables a mapping
+          next = "n", prev = "p", open_link = "<CR>", next_link = "<Tab>",
+          prev_link = "<S-Tab>", edit = "e", hide = "q", end_tour = "Q",
+          unfocus = "<Esc>",
+        },
+      },
+      tree = {
+        position = "left", -- or "right"
+        width = 40,
+        keymaps = { ... }, -- see |codetour-tree|
+      },
+      markers = { sign = "◆", virtual_text = false },
+      icons = {
+        collapsed = "▸", expanded = "▾", tour = "○", active = "▶",
+        complete = "✓", recording = "●", file = "•", directory = "▪",
+        content = "¶",
+      },
+      -- VS Code view IDs (`step.view`) -> Ex command or function.
+      views = {},
+      -- Command IDs (links, `step.commands`) -> Ex command or function.
+      commands = {},
+      terminal = { height = 12 },
+      -- Format (via LSP) after inserting a code snippet.
+      format_on_insert = true,
+      -- Called with the path of directory steps, e.g. to reveal them in
+      -- your file explorer.
+      on_directory_step = nil,
+    })
+<
+The first four options mirror the VS Code settings. When they aren't passed
+to `setup()`, the workspace's `.vscode/settings.json` is used
+(`codetour.promptForWorkspaceTours`, `codetour.recordMode`,
+`codetour.showMarkers`, `codetour.customTourDirectory`), so teams can share
+them.
+
+Views (`step.view`) default to Neovim equivalents where one exists:
+"terminal" opens the CodeTour terminal, "problems" the diagnostics quickfix
+list, "explorer" Neo-tree/nvim-tree/oil/netrw, "scm" Neogit/fugitive/lazygit,
+"search" Telescope/fzf-lua, "output" |:messages| and "debug" nvim-dap-ui.
+
+==============================================================================
+12. LUA API AND EVENTS                                          *codetour-api*
+
+`require("codetour")` exposes the same API as the VS Code extension:
+
+  `start_tour(tour, step?, opts?)`   Start a tour (step is 0-based). `opts`:
+                                     `root`, `edit_mode`, `can_edit`, `tours`.
+  `start_tour_by_path(path, step?)`  Start the tour in a file.
+  `end_tour()`                       End the active tour.
+  `export_tour(tour)`                Return the tour with files embedded.
+  `record_tour(title?)`              Start recording a new tour.
+  `select_tour(tours?, root?, step?)` Start the only tour or pick one.
+  `start_default_tour()`             Start the primary tour or pick one.
+  `prompt_for_tour(root?, tours?)`   Offer to start a tour (once per root).
+  `next()`, `prev()`, `resume()`
+  `get_tours()`, `get_active()`
+  `status()`                         Text for a statusline component.
+
+Events are `User` autocommands:
+
+  `CodeTourStepChanged`  A tour started or moved to another step (VS Code's
+                         onDidStartTour). `data`: `{ tour, step }`.
+  `CodeTourEnded`        A tour ended. `data`: `{ tour }`.
+>lua
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "CodeTourStepChanged",
+      callback = function(ev)
+        print(ev.data.tour.title, ev.data.step + 1)
+      end,
+    })
+<
+Statusline example (lualine): >lua
+    sections = {
+      lualine_c = { function() return require("codetour").status() end },
+    }
+<
+==============================================================================
+13. HIGHLIGHTS                                           *codetour-highlights*
+
+  CodeTourMarker        Tour marker signs (DiagnosticInfo)
+  CodeTourMarkerText    Marker virtual text (Comment)
+  CodeTourSelection     The step's selection (Visual)
+  CodeTourFloat         Step window (NormalFloat)
+  CodeTourBorder        Step window border (FloatBorder)
+  CodeTourTitle         Step window title (FloatTitle)
+  CodeTourFooter        Step window key hints (Comment)
+  CodeTourActive        Active tour/step icon (DiagnosticWarn)
+  CodeTourActiveStep    Active step in the tree (bold)
+  CodeTourComplete      Completed icon (DiagnosticOk)
+  CodeTourRecording     Recording icon (DiagnosticError)
+  CodeTourTourIcon      Tour icon (Special)
+  CodeTourStepIcon      Step icon (Special)
+  CodeTourTourTitle     Tour titles (Normal)
+  CodeTourExpander      Expand/collapse indicator (Comment)
+  CodeTourDescription   Tree descriptions (Comment)
+
+==============================================================================
+14. DIFFERENCES FROM VS CODE                                 *codetour-vscode*
+
+- The comment thread is a window anchored below the step's line.
+- The "Save tour as..." button: pass a path ending in ".tour" to `record`.
+- Steps are added with `:CodeTour add_step` instead of the gutter "+".
+- Right-click menus are tree mappings (|codetour-tree|) and commands.
+- VS Code views and commands are mapped to Neovim equivalents where possible
+  (`views`, `commands`).
+- `:CodeTour change_step_selection` replaces "edit the step, reselect, save".
+- Live Share and CodeStatus integrations aren't available.
+- Tours show in the tree only when they're valid (`title` and `steps`).
+
+ vim:tw=78:ts=8:ft=help:norl:
