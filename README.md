@@ -40,6 +40,26 @@ Requires Neovim 0.10+. With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 Tours can target a single editor with `"when": "isNeovim"` (or `"!isNeovim"`). See [`:help codetour`](doc/codetour.txt) for the full documentation, and run `make test` to run the plugin's test suite.
 
+## Command line, agents and CI
+
+The `codetour` CLI (in [`src/cli`](src/cli), sharing its code with the extension) creates, edits, checks and previews tours without an editor, which makes it easy for coding agents such as Claude Code to write and maintain tours, and for CI to catch tours that no longer match the code.
+
+```sh
+npm install && npm run build              # builds dist/cli.js (bin/codetour runs it)
+codetour new "Request lifecycle"
+codetour add request --at 'src/server.ts:/app.use(router)/' --description "Every request starts here."
+codetour add request --at 'src/handlers/user.ts:12-30' --title "Loading the user" --description - < notes.md
+codetour show request                     # each step with the code it points at
+codetour validate                         # missing files/lines, broken links, ... (exit code 1 on errors)
+codetour fix --write                      # re-anchor steps after the code changed (uses git history)
+```
+
+Run `codetour help` for all commands (`list`, `show`, `validate`, `fmt`, `new`, `add`, `edit`, `move`, `rm`, `delete`, `fix`); each takes `--json`. In Neovim, `:CodeTour validate` runs the CLI and lists problems in the quickfix list.
+
+For agents, [`skills/codetour`](skills/codetour/SKILL.md) is a [Claude Code skill](https://docs.claude.com/en/docs/claude-code/skills) that teaches the workflow (planning a tour, writing good steps, keeping tours up to date). Install it with `ln -s "$PWD/skills/codetour" ~/.claude/skills/codetour`, and put the CLI on your PATH with `ln -s "$PWD/bin/codetour" ~/.local/bin/codetour`.
+
+In CI, `codetour validate` catches broken tours and warns about steps whose code moved since the tour was last committed (`--strict` makes warnings fail), and `codetour fix` (a dry run, exit code 1 when steps need to move) reports how to re-anchor them. Both need the git history (`fetch-depth: 0` with `actions/checkout`).
+
 ## Getting Started
 
 In order to get started, install the [CodeTour extension](https://aka.ms/codetour), and then following one of the following guides, depending on whether you want to record or play back a tour:

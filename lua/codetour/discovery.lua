@@ -21,14 +21,7 @@ end
 
 local warned = {}
 
-local function read_tour(path, tours)
-  local tour = tourfile.read(path)
-  if tour then
-    tours[#tours + 1] = tour
-  end
-end
-
-local function read_directory(dir, tours)
+local function list_directory(dir, files)
   local handle = vim.uv.fs_scandir(dir)
   if not handle then
     return
@@ -47,24 +40,37 @@ local function read_directory(dir, tours)
   for _, entry in ipairs(entries) do
     local path = dir .. "/" .. entry.name
     if entry.kind == "directory" then
-      read_directory(path, tours)
+      list_directory(path, files)
     elseif entry.kind == "file" or entry.kind == "link" then
-      read_tour(path, tours)
+      files[#files + 1] = path
     end
   end
 end
 
---- Reads every tour in a workspace folder.
-function M.find_tours(root)
-  local tours = {}
+--- Lists the files in a workspace folder that may contain tours (like VS
+--- Code, every file in the tour directories is tried).
+function M.tour_files(root)
+  local files = {}
   for _, directory in ipairs(M.directories(root)) do
-    read_directory(util.join(root, directory), tours)
+    list_directory(util.join(root, directory), files)
   end
   for _, file in ipairs(M.MAIN_TOUR_FILES) do
     local path = util.join(root, file)
     local stat = vim.uv.fs_stat(path)
     if stat and stat.type == "file" then
-      read_tour(path, tours)
+      files[#files + 1] = path
+    end
+  end
+  return files
+end
+
+--- Reads every tour in a workspace folder.
+function M.find_tours(root)
+  local tours = {}
+  for _, path in ipairs(M.tour_files(root)) do
+    local tour = tourfile.read(path)
+    if tour then
+      tours[#tours + 1] = tour
     end
   end
   return tours
@@ -124,19 +130,26 @@ function M.update_marker_titles(tour)
   end
 end
 
---- Re-discovers the workspace's tours and updates the store.
-function M.discover()
+--- Reads the tours of every workspace folder, sorted by title.
+---@param opts? { all?: boolean } include tours hidden by their `when` clause
+function M.load(opts)
   local tours = {}
   for _, root in ipairs(util.roots()) do
     vim.list_extend(tours, M.find_tours(root))
   end
-
-  tours = vim.tbl_filter(is_visible, tours)
+  if not (opts and opts.all) then
+    tours = vim.tbl_filter(is_visible, tours)
+  end
   table.sort(tours, compare_titles)
   for _, tour in ipairs(tours) do
     M.update_marker_titles(tour)
   end
+  return tours
+end
 
+--- Re-discovers the workspace's tours and updates the store.
+function M.discover()
+  local tours = M.load()
   state.tours = tours
   state.discovered = true
 
@@ -178,6 +191,37 @@ end
 function M.ensure()
   if not state.discovered then
     M.discover()
+  end
+end
+
+--- Finds a tour by title or by (a suffix of) its file path, like the
+--- `?tour=` parameter of VS Code's URI handler.
+function M.find_tour(name, tours)
+  tours = tours or state.tours
+  for _, tour in ipairs(tours) do
+    if tour.title == name then
+      return tour
+    end
+  end
+  local lower = name:lower()
+  for _, tour in ipairs(tours) do
+    if tour.title:lower() == lower or util.tour_title(tour):lower() == lower then
+      return tour
+    end
+  end
+  local file = name:match("%.tour$") and name or name .. ".tour"
+  for _, tour in ipairs(tours) do
+    if tour.id:sub(-#file) == file and (#tour.id == #file or tour.id:sub(-#file - 1, -#file - 1) == "/") then
+      return tour
+    end
+  end
+  -- Finally, a part of the title, as long as it identifies a single tour
+  -- (e.g. "getting" for "🏃 Getting Started").
+  local matches = vim.tbl_filter(function(tour)
+    return tour.title:lower():find(lower, 1, true) ~= nil
+  end, tours)
+  if #matches == 1 then
+    return matches[1]
   end
 end
 

@@ -252,35 +252,9 @@ function M.start_default_tour(root, tours, step)
   return M.select_tour(tours, root, step)
 end
 
---- Finds a tour by title or by (a suffix of) its file path, like the
---- `?tour=` parameter of VS Code's URI handler.
+--- Finds a tour by title, file name or a unique part of its title.
 function M.find_tour(name, tours)
-  tours = tours or state.tours
-  for _, tour in ipairs(tours) do
-    if tour.title == name then
-      return tour
-    end
-  end
-  local lower = name:lower()
-  for _, tour in ipairs(tours) do
-    if tour.title:lower() == lower or util.tour_title(tour):lower() == lower then
-      return tour
-    end
-  end
-  local file = name:match("%.tour$") and name or name .. ".tour"
-  for _, tour in ipairs(tours) do
-    if tour.id:sub(-#file) == file and (#tour.id == #file or tour.id:sub(-#file - 1, -#file - 1) == "/") then
-      return tour
-    end
-  end
-  -- Finally, a part of the title, as long as it identifies a single tour
-  -- (e.g. "getting" for "🏃 Getting Started").
-  local matches = vim.tbl_filter(function(tour)
-    return tour.title:lower():find(lower, 1, true) ~= nil
-  end, tours)
-  if #matches == 1 then
-    return matches[1]
-  end
+  return discovery().find_tour(name, tours)
 end
 
 --- Offers to start a tour the first time a workspace with tours is opened.

@@ -22,6 +22,13 @@ function M.check()
     health.warn("curl isn't installed: :CodeTour open_url won't work")
   end
 
+  local cli, cli_err = require("codetour.validate").command()
+  if cli then
+    health.ok("The codetour CLI is available for :CodeTour validate (" .. table.concat(cli, " ") .. ")")
+  else
+    health.warn(cli_err)
+  end
+
   local renderer
   for _, module in ipairs({ "render-markdown", "markview" }) do
     if pcall(require, module) then

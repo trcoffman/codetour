@@ -8,7 +8,7 @@
     {
       "file": "src/player/index.ts",
       "description": "### 🎥 Tour Player\n\nThe CodeTour player is what defines the experience that end-users get, when actually taking a guided walkthrough. It includes various UX components:\n\n* 🕳️ [Gutter decorator](./src/player/decorator.ts) - Displays the \"CodeTour\" icon next to lines that are associated with a tour\n* 📊 [Status bar indicator](./src/player/status.ts) - Indicates the current tour and step\n* 🌳 [Tree view](./src/player/tree/index.ts) - Provides an at-a-glance view of the tours within the opened workspace",
-      "line": 436
+      "line": 429
     },
     {
       "file": "src/recorder/index.ts",

@@ -17,33 +17,24 @@ import {
   onDidEndTour,
   startCodeTour
 } from "../store/actions";
+import { getLinePattern } from "../core/edit";
+import {
+  DEFAULT_TOUR_DIRECTORY,
+  formatTour,
+  getTourFileName,
+  SCHEMA_URL
+} from "../core/tourFile";
 import { getActiveWorkspacePath, getRelativePath } from "../utils";
 
 export async function saveTour(tour: CodeTour) {
   const uri = vscode.Uri.parse(tour.id);
-  const newTour = {
-    $schema: "https://aka.ms/codetour-schema",
-    ...tour
-  };
-
-  // @ts-ignore
-  delete newTour.id;
-  newTour.steps.forEach(step => {
-    delete step.markerTitle;
-  });
-
-  const tourContent = JSON.stringify(newTour, null, 2);
-
-  const bytes = new TextEncoder().encode(tourContent);
+  const bytes = new TextEncoder().encode(formatTour(tour));
   await vscode.workspace.fs.writeFile(uri, bytes);
 }
 
 export function registerRecorderCommands() {
   function getTourFileUri(workspaceRoot: vscode.Uri, title: string) {
-    const file = title
-      .toLocaleLowerCase()
-      .replace(/\s/g, "-")
-      .replace(/[^\w\d\-_]/g, "");
+    const file = getTourFileName(title);
 
     const prefix = workspaceRoot.path.endsWith("/")
       ? workspaceRoot.path
@@ -52,10 +43,10 @@ export function registerRecorderCommands() {
     const customTourDirectory = vscode.workspace
       .getConfiguration(EXTENSION_NAME)
       .get("customTourDirectory", null);
-    const tourDirectory = customTourDirectory || ".tours";
+    const tourDirectory = customTourDirectory || DEFAULT_TOUR_DIRECTORY;
 
     return workspaceRoot.with({
-      path: `${prefix}${tourDirectory}/${file}.tour`
+      path: `${prefix}${tourDirectory}/${file}`
     });
   }
 
@@ -84,7 +75,7 @@ export function registerRecorderCommands() {
         : path.basename(title.path).replace(".tour", "");
 
     const tour = {
-      $schema: "https://aka.ms/codetour-schema",
+      $schema: SCHEMA_URL,
       title: tourTitle,
       steps: []
     };
@@ -390,20 +381,15 @@ export function registerRecorderCommands() {
         const fileEditors = vscode.window.visibleTextEditors.filter(
           editor => editor.document && editor.document.uri.scheme === "file"
         );
-        const contents = fileEditors?.[0]?.document
-          .lineAt(thread.range.start.line)
-          .text.trim();
-
-        const pattern =
-          "^[^\\S\\n]*" + contents!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const match = fileEditors?.[0]?.document
-          .getText()
-          .match(new RegExp(pattern, "gm"));
+        const document = fileEditors?.[0]?.document;
 
         // If the selected line isn't empty, and it's associated
         // pattern only matches a single line, then use it. Otherwise,
         // we have to fall back to the line number.
-        if (contents && match && match.length === 1) {
+        const pattern =
+          document &&
+          getLinePattern(document.getText(), thread.range.start.line);
+        if (pattern) {
           step.pattern = pattern;
         } else {
           // TODO: Try to get smarter about how to handle this.

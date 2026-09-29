@@ -1,26 +1,21 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import * as jexl from "jexl";
 import { comparer, runInAction, set } from "mobx";
 import * as os from "os";
 import * as vscode from "vscode";
 import { CodeTour, store } from ".";
-import { EXTENSION_NAME, VSCODE_DIRECTORY } from "../constants";
+import { EXTENSION_NAME } from "../constants";
+import {
+  compareTours,
+  evaluateWhen,
+  getTourDirectories,
+  MAIN_TOUR_FILES
+} from "../core/tourFile";
 import { readUriContents, updateMarkerTitles } from "../utils";
 import { endCurrentCodeTour } from "./actions";
 
-export const MAIN_TOUR_FILES = [
-  ".tour",
-  `${VSCODE_DIRECTORY}/main.tour`,
-  "main.tour"
-];
-
-const SUB_TOUR_DIRECTORIES = [
-  `${VSCODE_DIRECTORY}/tours`,
-  ".github/tours",
-  `.tours`
-];
+export { MAIN_TOUR_FILES };
 
 const HAS_TOURS_KEY = `${EXTENSION_NAME}:hasTours`;
 
@@ -34,11 +29,9 @@ const TOUR_CONTEXT = {
 
 const customDirectory = vscode.workspace
   .getConfiguration(EXTENSION_NAME)
-  .get("customTourDirectory", null);
+  .get<string | null>("customTourDirectory", null);
 
-if (customDirectory) {
-  SUB_TOUR_DIRECTORIES.push(customDirectory);
-}
+const SUB_TOUR_DIRECTORIES = getTourDirectories(customDirectory);
 
 export async function discoverTours(): Promise<void> {
   const tours = await Promise.all(
@@ -55,10 +48,11 @@ export async function discoverTours(): Promise<void> {
   );
 
   runInAction(() => {
+    // Tours whose `when` clause can't be evaluated are hidden.
     store.tours = tours
       .flat()
-      .sort((a, b) => a.title.localeCompare(b.title))
-      .filter(tour => !tour.when || jexl.evalSync(tour.when, TOUR_CONTEXT));
+      .sort(compareTours)
+      .filter(tour => evaluateWhen(tour, TOUR_CONTEXT).visible);
 
     if (store.activeTour) {
       const tour = store.tours.find(

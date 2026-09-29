@@ -17,3 +17,9 @@ doc/**
 tests/**
 .tests/**
 Makefile
+out-test/**
+test/**
+tsconfig.test.json
+bin/**
+skills/**
+dist/cli.js*

@@ -1,0 +1,30 @@
+name: CLI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    name: Build, test and validate tours
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # validate and fix compare tours with the commit that last changed them
+          fetch-depth: 0
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the extension and the CLI
+        run: npm run build
+      - name: Test the CLI
+        run: npm test
+      - name: Validate this repository's tours
+        run: node dist/cli.js validate

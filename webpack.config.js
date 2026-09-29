@@ -63,4 +63,22 @@ const webConfig = {
   }
 };
 
-module.exports = [nodeConfig, webConfig];
+// The `codetour` command-line tool (see src/cli), for agents and CI.
+const cliConfig = {
+  ...config,
+  entry: "./src/cli/index.ts",
+  target: "node",
+  externals: {},
+  output: {
+    path: path.resolve(__dirname, "dist"),
+    filename: "cli.js",
+    libraryTarget: "commonjs2",
+    devtoolModuleFilenameTemplate: "../[resource-path]"
+  },
+  plugins: [
+    ...config.plugins,
+    new webpack.BannerPlugin({ banner: "#!/usr/bin/env node", raw: true })
+  ]
+};
+
+module.exports = [nodeConfig, webConfig, cliConfig];

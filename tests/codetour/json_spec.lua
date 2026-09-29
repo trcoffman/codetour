@@ -99,10 +99,10 @@ describe("codetour.json", function()
     end)
   end)
 
-  it("reports the position of syntax errors", function()
-    local ok, err = pcall(json.decode, '{"a": }')
+  it("reports the line and column of syntax errors", function()
+    local ok, err = pcall(json.decode, '{\n  "a": 1,\n  "b": }')
     assert.is_false(ok)
-    assert.matches("position 7", err)
+    assert.matches("line 3, column 8", err)
   end)
 
   it("copies values together with their key order", function()

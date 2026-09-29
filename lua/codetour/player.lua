@@ -201,37 +201,16 @@ end
 
 local warned_patterns = {}
 
---- Returns the 0-based line a step is attached to.
+--- Returns the 0-based line a step is attached to (see codetour.anchor).
 function M.resolve_line(tour, index, step, buf)
   vim.fn.bufload(buf)
-  local count = vim.api.nvim_buf_line_count(buf)
-  local line
-  if step.line then
-    line = step.line - 1
-  elseif step.selection then
-    line = step.selection["end"].line - 1
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local line, _, problem, problem_kind = require("codetour.anchor").resolve(tour, index, lines)
+  if problem_kind == "unsupported" and not warned_patterns[problem] then
+    warned_patterns[problem] = true
+    util.warn(problem)
   end
-
-  if line == nil and step.file then
-    local pattern = step.pattern or util.step_marker(tour, index)
-    if pattern then
-      local regex = require("codetour.regex")
-      local _, err = regex.compile(pattern)
-      if err and not warned_patterns[pattern] then
-        warned_patterns[pattern] = true
-        util.warn(("Unsupported step pattern %q: %s"):format(pattern, err))
-      end
-      line = regex.find_line(vim.api.nvim_buf_get_lines(buf, 0, -1, false), pattern)
-    end
-  end
-
-  if line == nil then
-    -- File steps without a line are shown at the end of the file (like VS
-    -- Code); directory and content steps below the first line of their
-    -- buffer (the directory name, for directory steps).
-    line = (step.file or step.uri or step.contents) and count - 1 or 0
-  end
-  return math.max(0, math.min(line, count - 1))
+  return line
 end
 
 -- Windows ------------------------------------------------------------------

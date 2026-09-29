@@ -181,6 +181,15 @@ function M.export(tour)
   return M.encode(copy, { schema = false })
 end
 
+--- Where a new tour with this title is saved in a workspace folder.
+function M.path_for(root, title)
+  local directory = require("codetour.config").setting("custom_tour_directory", root)
+  if type(directory) ~= "string" or directory == "" then
+    directory = ".tours"
+  end
+  return util.join(root, directory .. "/" .. M.file_name(title))
+end
+
 --- Converts a title into the file name used for a new tour.
 function M.file_name(title)
   return title:lower():gsub("%s", "-"):gsub("[^%w%-_]", "") .. ".tour"

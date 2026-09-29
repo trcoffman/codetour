@@ -137,7 +137,10 @@ function M.decode(str, opts)
   end
 
   local function fail(msg)
-    error(("invalid JSON at position %d: %s"):format(pos, msg), 0)
+    local before = str:sub(1, pos - 1)
+    local _, newlines = before:gsub("\n", "")
+    local column = pos - (before:match(".*()\n") or 0)
+    error(("invalid JSON at line %d, column %d: %s"):format(newlines + 1, column, msg), 0)
   end
 
   local function skip()
@@ -217,8 +220,8 @@ function M.decode(str, opts)
   end
 
   local function parse_array()
-    pos = pos + 1
     local result = M.array({})
+    pos = pos + 1
     skip()
     if str:sub(pos, pos) == "]" then
       pos = pos + 1
@@ -244,8 +247,8 @@ function M.decode(str, opts)
   end
 
   local function parse_object()
-    pos = pos + 1
     local result, keys = {}, {}
+    pos = pos + 1
     key_order[result] = keys
     skip()
     if str:sub(pos, pos) == "}" then

@@ -96,11 +96,7 @@ end
 -- Recording ----------------------------------------------------------------
 
 function M.tour_path(root, title)
-  local directory = config.setting("custom_tour_directory", root)
-  if type(directory) ~= "string" or directory == "" then
-    directory = ".tours"
-  end
-  return util.join(root, directory .. "/" .. tourfile.file_name(title))
+  return tourfile.path_for(root, title)
 end
 
 -- When a tour is saved outside of the workspace ("save as"), offer to export
@@ -285,18 +281,10 @@ function M.add_step(opts)
     local row = opts.range == 1 and opts.line1 - 1 or vim.api.nvim_win_get_cursor(win)[1] - 1
     step = json.object({ file = file, description = "" }, { "file", "description" })
     if config.setting("record_mode", active.root) == "pattern" then
+      -- Use a pattern only if it identifies the line unambiguously.
       local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-      local text = vim.trim(lines[row + 1] or "")
-      local pattern = "^[^\\S\\n]*" .. require("codetour.regex").escape(text)
-      local compiled = require("codetour.regex").compile(pattern)
-      local matches = 0
-      for _, line in ipairs(compiled and lines or {}) do
-        if compiled:match_str(line) then
-          matches = matches + 1
-        end
-      end
-      -- Use the pattern only if it identifies the line unambiguously.
-      if text ~= "" and matches == 1 then
+      local pattern = require("codetour.ops").line_pattern(lines, row)
+      if pattern then
         step.pattern = pattern
       else
         step.line = row + 1

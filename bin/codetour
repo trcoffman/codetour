@@ -1,0 +1,20 @@
+#!/bin/sh
+# Runs the `codetour` CLI from a clone of this repository (build it first with
+# `npm install && npm run build`). Can be symlinked onto your PATH.
+
+# Resolve symlinks (e.g. ~/.local/bin/codetour -> <repo>/bin/codetour).
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+dir=$(cd "$(dirname "$self")/.." && pwd)
+
+if [ ! -f "$dir/dist/cli.js" ]; then
+  echo "codetour: $dir/dist/cli.js is missing; run \`npm install && npm run build\` in $dir" >&2
+  exit 2
+fi
+exec node "$dir/dist/cli.js" "$@"

@@ -186,6 +186,13 @@ M.subcommands = {
     end),
     complete = complete_tours,
   },
+  validate = {
+    desc = "Check tours for problems with the codetour CLI (listed in the quickfix list)",
+    run = function(args)
+      require("codetour.validate").run(joined(args))
+    end,
+    complete = complete_tours,
+  },
   refresh = {
     desc = "Re-discover the workspace's tours",
     run = function()

@@ -22,6 +22,14 @@ import {
   workspace
 } from "vscode";
 import { SMALL_ICON_URL } from "../constants";
+import { resolveStepLine } from "../core/anchor";
+import {
+  CODE_FENCE_PATTERN,
+  COMMAND_PATTERN,
+  FILE_REFERENCE_PATTERN,
+  SHELL_SCRIPT_PATTERN,
+  TOUR_REFERENCE_PATTERN
+} from "../core/markdown";
 import { CodeTour, store } from "../store";
 import { initializeStorage } from "../store/storage";
 import {
@@ -45,15 +53,6 @@ const CONTROLLER_LABEL = "CodeTour";
 
 let id = 0;
 
-const SHELL_SCRIPT_PATTERN = /^>>\s+(?<script>.*)$/gm;
-
-const COMMAND_PATTERN =
-  /(?<commandPrefix>\(command:[\w+\.]+\?)(?<params>\[[^\]\)]+\])/gm;
-
-const TOUR_REFERENCE_PATTERN =
-  /(?:\[(?<linkTitle>[^\]]+)\])?\[(?=\s*[^\]\s])(?<tourTitle>[^\]#]+)?(?:#(?<stepNumber>\d+))?\](?!\()/gm;
-const FILE_REFERENCE_PATTERN = /(\!)?(\[[^\]]+\]\()(\.[^\)]+)(?=\))/gm;
-const CODE_FENCE_PATTERN = /```[^\n]+\n(.+)\n```/gms;
 
 export function generatePreviewContent(content: string) {
   return content
@@ -250,15 +249,9 @@ async function renderCurrentStep() {
     ? step.selection.end.line - 1
     : undefined;
 
-  if (step.file && line === undefined) {
-    const stepPattern = step.pattern || getActiveStepMarker();
-    if (stepPattern) {
-      const document = await workspace.openTextDocument(uri);
-      const match = document.getText().match(new RegExp(stepPattern, "m"));
-      if (match) {
-        line = document.positionAt(match.index!).line;
-      }
-    }
+  if (step.file && line === undefined && (step.pattern || getActiveStepMarker())) {
+    const document = await workspace.openTextDocument(uri);
+    line = resolveStepLine(currentTour, currentStep, document.getText()).line;
   }
 
   if (line === undefined) {

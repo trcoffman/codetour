@@ -123,6 +123,11 @@ M.defaults = {
   -- Called with the absolute path when a directory step is shown, e.g. to
   -- reveal it in a file explorer.
   on_directory_step = nil,
+
+  -- Command that runs the `codetour` CLI for `:CodeTour validate` (a string
+  -- or a list). Defaults to `codetour` on the PATH, then the CLI built in the
+  -- plugin's directory (`npm install && npm run build`).
+  cli = nil,
 }
 
 local options = vim.deepcopy(M.defaults)

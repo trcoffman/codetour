@@ -36,6 +36,8 @@ either editor.
 - Neovim 0.10 or newer.
 - `git`, for tours that are pinned to a git ref.
 - `curl`, for |:CodeTour| open_url.
+- Node.js and the `codetour` CLI, for |:CodeTour| validate only
+  (|codetour-validate|).
 - Recommended: render-markdown.nvim (or markview.nvim) to render step
   descriptions. Without one, Neovim's treesitter markdown highlighting is
   used.
@@ -189,6 +191,8 @@ Taking tours ~
 :CodeTour toggle_markers        Toggle tour markers.
 :CodeTour reset_progress [tour] Reset the progress of a tour (or all).
 :CodeTour refresh               Re-discover the workspace's tours.
+:CodeTour validate [tour]       Check tours for problems (see
+                                |codetour-validate|).
 
 Recording and editing ~
 :CodeTour record [title|path]   Record a new tour.
@@ -409,6 +413,8 @@ Defaults: >lua
       -- Called with the path of directory steps, e.g. to reveal them in
       -- your file explorer.
       on_directory_step = nil,
+      -- Command that runs the `codetour` CLI for |:CodeTour| validate.
+      cli = nil,
     })
 <
 The first four options mirror the VS Code settings. When they aren't passed
@@ -421,6 +427,21 @@ Views (`step.view`) default to Neovim equivalents where one exists:
 "terminal" opens the CodeTour terminal, "problems" the diagnostics quickfix
 list, "explorer" Neo-tree/nvim-tree/oil/netrw, "scm" Neogit/fugitive/lazygit,
 "search" Telescope/fzf-lua, "output" |:messages| and "debug" nvim-dap-ui.
+
+                                                           *codetour-validate*
+`:CodeTour validate [tour]` checks tours (all of the workspace's, or one)
+with the `codetour` command-line tool and lists the problems in the quickfix
+list: steps pointing at files, lines or patterns that don't exist, links to
+steps or tours that don't exist, invalid `when` clauses, and so on.
+
+The CLI is part of this repository (`src/cli`) and needs Node.js. It's found
+in this order: the `cli` option (e.g. `{ "npx", "codetour" }`), `codetour` on
+the PATH, and the CLI built in the plugin's directory. To build it there: >sh
+    cd <plugin directory> && npm install && npm run build
+<
+The CLI also creates, edits and previews tours from the command line, which
+is how coding agents are meant to author them: run `codetour help`, and see
+`skills/codetour/SKILL.md` for a Claude Code skill.
 
 ==============================================================================
 12. LUA API AND EVENTS                                          *codetour-api*

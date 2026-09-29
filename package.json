@@ -35,6 +35,9 @@
     "onNotebookEditor:codetour"
   ],
   "main": "./dist/extension-node.js",
+  "bin": {
+    "codetour": "dist/cli.js"
+  },
   "browser": "./dist/extension-web.js",
   "contributes": {
     "configuration": {
@@ -655,6 +658,7 @@
     "@types/jexl": "^2.2.0",
     "axios": "^0.21.4",
     "jexl": "^2.3.0",
+    "jsonc-parser": "^3.3.1",
     "mobx": "^5.14.2",
     "os-browserify": "0.3.0",
     "path-browserify": "1.0.1",
@@ -676,6 +680,7 @@
   },
   "scripts": {
     "build": "webpack --mode production",
+    "test": "tsc -p tsconfig.test.json && node --test out-test/test/*.test.js",
     "vscode:prepublish": "npm run build",
     "watch": "webpack --mode development --watch",
     "package": "vsce package"
