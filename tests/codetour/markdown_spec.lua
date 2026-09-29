@@ -13,10 +13,19 @@ end
 
 describe("codetour.markdown", function()
   it("leaves regular markdown alone", function()
-    local text = "# Title\n\n**bold** and `code` with [a link](https://example.com) and ![img](./a.png)\n\n- item"
+    local text = "# Title\n\n**bold** and `code [not](a link)` and [an anchor](#top)\n\n- item"
     local out, actions = render(text)
     assert.equals(text, out)
     assert.same({}, actions)
+  end)
+
+  it("points links at actions so their concealed destinations stay short", function()
+    local out, actions = render("[docs](https://example.com/a/long/path) ![Logo](./img/logo.png) [**code**](./src/a.js) [![b](x.svg)](https://ci)")
+    assert.equals("[docs](codetour:1) ![Logo](codetour:2) [**code**](codetour:3) [b](codetour:4)", out)
+    assert.same({ type = "url", url = "https://example.com/a/long/path" }, actions[1])
+    assert.same({ type = "file", path = "/ws/img/logo.png", image = true }, actions[2])
+    assert.same({ type = "file", path = "/ws/src/a.js" }, actions[3])
+    assert.same({ type = "url", url = "https://ci" }, actions[4])
   end)
 
   it("turns `>>` lines into terminal commands", function()

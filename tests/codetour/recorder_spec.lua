@@ -348,6 +348,17 @@ describe("codetour.recorder", function()
       assert.is_nil(helpers.read_json(path).steps[1].selection)
     end)
 
+    it("reloads buffers showing the tour file", function()
+      vim.cmd.edit(path)
+      local buf = vim.api.nvim_get_current_buf()
+      vim.cmd.enew()
+      ui.inputs = { "Reloaded" }
+      helpers.run(function()
+        recorder.change_title(tour())
+      end)
+      assert.matches('"title": "Reloaded"', helpers.text(buf))
+    end)
+
     it("renames tours and updates references to them", function()
       ui.inputs = { "Edited" }
       helpers.run(function()

@@ -113,8 +113,19 @@ function M.save(tour)
     util.error("Unable to save tour: " .. tostring(err))
     return false
   end
+  M.reload_buffers(tour.id)
   require("codetour.state").changed()
   return true
+end
+
+--- Reloads buffers showing a file the plugin just wrote (with 'autoread',
+--- unmodified buffers are updated; modified ones get Neovim's usual warning).
+function M.reload_buffers(path)
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) and util.same_path(vim.api.nvim_buf_get_name(buf), path) then
+      pcall(vim.cmd.checktime, buf)
+    end
+  end
 end
 
 --- Creates a new, empty tour file.

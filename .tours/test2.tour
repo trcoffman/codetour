@@ -1,0 +1,49 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Test2",
+  "steps": [
+    {
+      "file": "README.md",
+      "description": "This is a new step",
+      "line": 9
+    },
+    {
+      "file": "LICENSE.txt",
+      "description": "This is another step",
+      "line": 1
+    },
+    {
+      "file": "LICENSE.txt",
+      "description": "Test next line",
+      "line": 2
+    },
+    {
+      "file": "src/player/index.ts",
+      "description": "inserted",
+      "line": 1
+    },
+    {
+      "file": "LICENSE.txt",
+      "description": "step inserted",
+      "line": 4
+    },
+    {
+      "file": "CONTRIBUTING.md",
+      "description": "last step",
+      "line": 10
+    },
+    {
+      "directory": "",
+      "description": "Directory step"
+    },
+    {
+      "file": "src/player/index.ts",
+      "description": "Next",
+      "line": 24
+    },
+    {
+      "directory": "src/player",
+      "description": "Add directory step"
+    }
+  ]
+}

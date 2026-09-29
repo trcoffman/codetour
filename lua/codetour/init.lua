@@ -39,7 +39,7 @@ function M.on_startup()
   require("codetour.markers").refresh_all()
   if #vim.api.nvim_list_uis() > 0 then
     require("codetour.async").run(function()
-      require("codetour.actions").prompt_for_tour()
+      require("codetour.actions").prompt_for_tour(nil, nil, { notify = true })
     end)
   end
 end

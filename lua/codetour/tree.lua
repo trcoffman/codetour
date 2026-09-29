@@ -443,11 +443,65 @@ M.actions.peek = function(node)
   else
     text = node.tour.description or "_No description_"
   end
-  vim.lsp.util.open_floating_preview(vim.split(text, "\n", { plain = true }), "markdown", {
-    border = config.get().player.border,
-    focus_id = "codetour_peek",
-    max_width = config.get().player.max_width,
+  M.popup(vim.split(text, "\n", { plain = true }), { rendered = true })
+end
+
+local popup = {}
+
+local function close_popup()
+  if popup.win and vim.api.nvim_win_is_valid(popup.win) then
+    vim.api.nvim_win_close(popup.win, true)
+  end
+  popup = {}
+end
+
+--- Shows markdown in a window next to the tree (closed when the cursor moves).
+function M.popup(lines, opts)
+  close_popup()
+  local tree_win = tree_window()
+  if not tree_win then
+    return
+  end
+  local player_opts = config.get().player
+  local tree_width = vim.api.nvim_win_get_width(tree_win)
+  local width = math.max(20, math.min(player_opts.max_width or 80, vim.o.columns - tree_width - 4))
+  local on_right = config.get().tree.position == "right"
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[buf].bufhidden = "wipe"
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+
+  local win = vim.api.nvim_open_win(buf, false, {
+    relative = "win",
+    win = tree_win,
+    row = vim.fn.winline() - 1,
+    col = on_right and -(width + 2) or tree_width,
+    width = width,
+    height = 1,
+    border = player_opts.border,
+    zindex = 45,
   })
+  require("codetour.player").setup_markdown_window(win, buf, opts and opts.rendered)
+  local max_height = math.max(1, vim.o.lines - vim.o.cmdheight - 4)
+  local function fit()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_set_height(win, math.min(vim.api.nvim_win_text_height(win, {}).all, max_height))
+    end
+  end
+  fit()
+  -- Fit again once markdown renderers added their decorations.
+  vim.defer_fn(fit, 150)
+  popup = { win = win }
+
+  vim.api.nvim_create_autocmd({ "CursorMoved", "BufLeave", "WinLeave" }, {
+    buffer = vim.api.nvim_win_get_buf(tree_win),
+    once = true,
+    callback = function()
+      vim.schedule(close_popup)
+    end,
+  })
+  return win
 end
 
 M.actions.reset_progress = function(node)
@@ -507,19 +561,50 @@ local HELP = {
   help = "Show this help",
 }
 
+local HELP_SECTIONS = {
+  { "Taking tours", { "toggle", "start", "resume", "end_tour", "peek", "reset_progress" } },
+  {
+    "Editing tours",
+    {
+      "record",
+      "edit",
+      "preview",
+      "add_content_step",
+      "rename",
+      "change_description",
+      "change_ref",
+      "change_icon",
+      "toggle_primary",
+      "move_up",
+      "move_down",
+      "delete",
+      "export",
+    },
+  },
+  { "Other", { "open_file", "open_url", "toggle_markers", "refresh", "close", "help" } },
+}
+
 M.actions.help = function()
   local keys = config.get().tree.keymaps
-  local lines = { "# CodeTour tree", "" }
-  local names = vim.tbl_keys(HELP)
-  table.sort(names)
-  for _, name in ipairs(names) do
-    local lhs = keys[name]
-    if lhs then
-      lhs = type(lhs) == "table" and table.concat(lhs, ", ") or lhs
-      lines[#lines + 1] = ("- `%s` %s"):format(lhs, HELP[name])
+  local lines = {}
+  for _, section in ipairs(HELP_SECTIONS) do
+    local entries = {}
+    for _, name in ipairs(section[2]) do
+      local lhs = keys[name]
+      if lhs then
+        local list = type(lhs) == "table" and lhs or { lhs }
+        entries[#entries + 1] = ("- `%s` %s"):format(table.concat(list, "` `"), HELP[name])
+      end
+    end
+    if #entries > 0 then
+      if #lines > 0 then
+        lines[#lines + 1] = ""
+      end
+      lines[#lines + 1] = "## " .. section[1]
+      vim.list_extend(lines, entries)
     end
   end
-  vim.lsp.util.open_floating_preview(lines, "markdown", { border = config.get().player.border, focus_id = "codetour_help" })
+  M.popup(lines, { rendered = true })
 end
 
 local function set_keymaps(buf)
@@ -596,7 +681,9 @@ function M.open()
     wo.list = false
     wo.spell = false
     wo.winfixwidth = true
-    wo.winfixbuf = true
+    -- Files opened in the tree window are moved to a code window, see
+    -- codetour.player.rehome().
+    vim.w[win].codetour_window = { kind = "tree", buf = buf }
   else
     vim.api.nvim_set_current_win(win)
   end
@@ -618,7 +705,7 @@ function M.close()
   local win = tree_window()
   if win then
     if #vim.api.nvim_tabpage_list_wins(0) == 1 then
-      vim.wo[win].winfixbuf = false
+      vim.w[win].codetour_window = nil
       vim.api.nvim_win_call(win, vim.cmd.enew)
     else
       vim.api.nvim_win_close(win, false)

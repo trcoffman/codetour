@@ -15,7 +15,7 @@ Requires Neovim 0.10+. With [lazy.nvim](https://github.com/folke/lazy.nvim):
   "trcoffman/codetour",
   dependencies = { "MeanderingProgrammer/render-markdown.nvim" },
   cmd = "CodeTour",
-  event = "VeryLazy", -- for tour markers and the "take a tour?" prompt
+  event = "VeryLazy", -- for tour markers and the "this repo has tours" notice
   opts = {},
   keys = {
     { "<leader>ts", "<cmd>CodeTour start<cr>", desc = "Start a tour" },

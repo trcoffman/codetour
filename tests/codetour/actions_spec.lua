@@ -164,6 +164,22 @@ describe("codetour.actions", function()
     assert.equals(2, #ui.prompts)
   end)
 
+  it("only notifies about the workspace's tours at startup", function()
+    helpers.setup({ prompt_for_workspace_tours = true })
+    local ui = helpers.stub_ui()
+    vim.api.nvim_list_uis = function()
+      return { {} }
+    end
+    require("codetour").on_startup()
+    vim.wait(100, function()
+      return helpers.has_notification("guided tours")
+    end)
+    assert.is_true(helpers.has_notification("Run :CodeTour start"))
+    assert.same({}, ui.prompts)
+    assert.is_nil(state.active)
+    assert.is_true(storage.was_prompted(root))
+  end)
+
   it("doesn't prompt when disabled", function()
     local ui = helpers.stub_ui()
     helpers.run(function()
@@ -178,6 +194,9 @@ describe("codetour.actions", function()
     assert.equals("Beta", actions.find_tour("b").title)
     assert.equals("Beta", actions.find_tour("b.tour").title)
     assert.equals("Beta", actions.find_tour(".tours/b").title)
+    assert.equals("Alpha", actions.find_tour("alp").title)
+    -- Ambiguous parts of titles don't match ("e" is in Beta and Empty).
+    assert.is_nil(actions.find_tour("e"))
     assert.is_nil(actions.find_tour("zzz"))
   end)
 

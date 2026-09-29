@@ -9,9 +9,9 @@
 --   [text](command:x?[]) run a command
 --   ```lang ... ```      offer to insert the snippet into the step's file
 --
--- Generated links point at `codetour:<id>`, where `<id>` indexes the action
--- table returned alongside the markdown, which keeps the (concealed) link
--- destinations short.
+-- Every link points at `codetour:<id>`, where `<id>` indexes the action table
+-- returned alongside the markdown. Keeping the (concealed) destinations short
+-- matters because Neovim wraps lines as if concealed text was visible.
 
 local util = require("codetour.util")
 
@@ -40,6 +40,12 @@ end
 function Builder:link(label, action)
   self.actions[#self.actions + 1] = action
   return self:text(("[%s](%s%d)"):format(M.escape_label(label), M.SCHEME, #self.actions))
+end
+
+--- Appends an image whose target is opened by `action`.
+function Builder:image(label, action)
+  self.actions[#self.actions + 1] = action
+  return self:text(("![%s](%s%d)"):format(M.escape_label(label), M.SCHEME, #self.actions))
 end
 
 function Builder:markdown()
@@ -291,6 +297,12 @@ local function parse_reference(line, i, ctx)
   end
 end
 
+-- The label of a link, with nested links/images reduced to their text.
+local function link_label(text)
+  text = text:gsub("!?%[([^%]]*)%]%b()", "%1")
+  return (text:gsub("\\([%[%]\\])", "%1"))
+end
+
 local function transform_line(b, line, ctx)
   local i, n = 1, #line
   local plain = 1
@@ -311,14 +323,21 @@ local function transform_line(b, line, ctx)
       i = close and close + #ticks or i + #ticks
     elseif c == "!" and line:sub(i + 1, i + 1) == "[" then
       local link = parse_inline_link(line, i + 1)
+      local action = link and type(link.dest) == "string" and M.resolve(link.dest, ctx)
+      if action then
+        flush(i - 1)
+        action.image = action.type == "file" or nil
+        b:image(link_label(link.text), action)
+        plain = link.stop + 1
+      end
       i = link and link.stop + 1 or i + 1
     elseif c == "[" then
       local link = parse_inline_link(line, i)
       if link then
-        if type(link.dest) == "table" then
-          -- Command links are rewritten so the renderer can parse them.
+        local action = M.resolve(link.dest, ctx)
+        if action then
           flush(i - 1)
-          b:link(link.text:gsub("\\([%[%]\\])", "%1"), M.resolve(link.dest, ctx))
+          b:link(link_label(link.text), action)
           plain = link.stop + 1
         end
         i = link.stop + 1

@@ -70,10 +70,19 @@ function M.find_tours(root)
   return tours
 end
 
+-- Approximates JavaScript's localeCompare (which VS Code sorts tours with):
+-- case-insensitive, with symbols and emoji (e.g. "🏃 Getting Started")
+-- sorting before letters and digits.
+local function collation_key(title)
+  return (title:lower():gsub(".", function(c)
+    return (c:match("%w") and "\2" or "\1") .. c
+  end))
+end
+
 local function compare_titles(a, b)
-  local la, lb = a.title:lower(), b.title:lower()
-  if la ~= lb then
-    return la < lb
+  local ka, kb = collation_key(a.title), collation_key(b.title)
+  if ka ~= kb then
+    return ka < kb
   end
   return a.title < b.title
 end
@@ -132,6 +141,7 @@ function M.discover()
   state.discovered = true
 
   local active = state.active
+  local refresh = false
   if active and not active.pending and tourfile.is_saveable(active.tour) then
     local updated
     for _, tour in ipairs(tours) do
@@ -141,6 +151,10 @@ function M.discover()
       end
     end
     if updated then
+      -- Discovery runs often (e.g. on FocusGained), so only re-render the
+      -- step when the tour actually changed; re-rendering resets the step
+      -- window (and its scroll position).
+      refresh = tourfile.encode(updated) ~= tourfile.encode(active.tour)
       active.tour = updated
       if active.step >= #updated.steps then
         active.step = #updated.steps - 1
@@ -155,7 +169,7 @@ function M.discover()
   -- Loading the markers module subscribes it to store changes.
   require("codetour.markers")
   state.changed()
-  if state.active then
+  if refresh and state.active then
     require("codetour.player").refresh()
   end
 end

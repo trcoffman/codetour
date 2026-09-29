@@ -68,6 +68,14 @@ vim.api.nvim_create_autocmd({ "DirChanged", "FocusGained" }, {
 vim.api.nvim_create_autocmd("BufWinEnter", {
   group = group,
   callback = function(ev)
+    -- Something (`:edit`, a file picker, ...) opened a buffer in the step
+    -- window or the tree: move it to a code window once it's done.
+    local win = vim.api.nvim_get_current_win()
+    if vim.w[win].codetour_window then
+      vim.schedule(function()
+        require("codetour.player").rehome(win)
+      end)
+    end
     if discovered() and #require("codetour.state").tours > 0 then
       require("codetour.markers").refresh(ev.buf)
     end

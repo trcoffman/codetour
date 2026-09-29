@@ -273,10 +273,19 @@ function M.find_tour(name, tours)
       return tour
     end
   end
+  -- Finally, a part of the title, as long as it identifies a single tour
+  -- (e.g. "getting" for "🏃 Getting Started").
+  local matches = vim.tbl_filter(function(tour)
+    return tour.title:lower():find(lower, 1, true) ~= nil
+  end, tours)
+  if #matches == 1 then
+    return matches[1]
+  end
 end
 
 --- Offers to start a tour the first time a workspace with tours is opened.
-function M.prompt_for_tour(root, tours)
+---@param opts? { notify?: boolean } only show a (non-blocking) notification
+function M.prompt_for_tour(root, tours, opts)
   root = root or util.roots()[1]
   tours = tours or state.tours
   if #tours == 0 or state.active or storage.was_prompted(root) then
@@ -286,9 +295,14 @@ function M.prompt_for_tour(root, tours)
     return false
   end
   storage.set_prompted(root)
-  local choice = async.select({ "Start CodeTour", "Not now" }, {
-    prompt = "This workspace has guided tours you can take to get familiar with the codebase.",
-  })
+  local message = "This workspace has guided tours you can take to get familiar with the codebase."
+  if opts and opts.notify then
+    -- At startup, don't block the editor with a picker (VS Code shows a
+    -- toast, which is easy to ignore).
+    util.notify(message .. " Run :CodeTour start to take one, or :CodeTour tree to browse them.")
+    return false
+  end
+  local choice = async.select({ "Start CodeTour", "Not now" }, { prompt = message })
   if choice == "Start CodeTour" then
     return M.start_default_tour(root, tours)
   end

@@ -44,13 +44,15 @@ describe("codetour.discovery", function()
     assert.same({ "Ok" }, titles(helpers.setup()))
   end)
 
-  it("sorts tours by title, ignoring case", function()
+  it("sorts tours by title like VS Code (ignoring case, symbols first)", function()
     helpers.workspace({
       [".tours/1.tour"] = tour("beta"),
       [".tours/2.tour"] = tour("Alpha"),
       [".tours/3.tour"] = tour("Gamma"),
+      [".tours/4.tour"] = tour("🏃 Getting Started"),
+      [".tours/5.tour"] = tour("2 - Two"),
     })
-    assert.same({ "Alpha", "beta", "Gamma" }, titles(helpers.setup()))
+    assert.same({ "🏃 Getting Started", "2 - Two", "Alpha", "beta", "Gamma" }, titles(helpers.setup()))
   end)
 
   it("filters tours with a `when` clause", function()
@@ -145,6 +147,15 @@ describe("codetour.discovery", function()
     vim.cmd.edit(root .. "/notes.txt")
     require("codetour.discovery").discover()
     assert.equals(root .. "/notes.txt", vim.api.nvim_buf_get_name(0))
+  end)
+
+  it("leaves the step window alone when the active tour didn't change", function()
+    helpers.workspace({ [".tours/a.tour"] = tour("A") })
+    local state = helpers.setup()
+    require("codetour.actions").start_tour(state.tours[1])
+    local float = require("codetour.player").view().float
+    require("codetour.discovery").discover()
+    assert.equals(float, require("codetour.player").view().float)
   end)
 
   it("re-discovers tours when a tour file is written from Neovim", function()

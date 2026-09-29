@@ -67,7 +67,7 @@ With lazy.nvim: >lua
 <
 Calling `setup()` is optional; it only changes the defaults
 (|codetour-configuration|). Load the plugin at startup (e.g. `VeryLazy`) if
-you want tour markers and the "this workspace has tours" prompt.
+you want tour markers and the "this workspace has tours" notice.
 
 The plugin doesn't create global mappings. The keys above mirror the VS Code
 keybindings (next, previous, end, start); pick whatever suits you.
@@ -77,11 +77,11 @@ keybindings (next, previous, end, start); pick whatever suits you.
 
 Tours are discovered in the current working directory (see
 |codetour-tour-files|). The first time you open a workspace that has tours
-you're asked whether you want to take one.
+a notification tells you how to take them (it doesn't block the editor).
 
 Start a tour with `:CodeTour start` (pick from a list), `:CodeTour start
-{name} [step]`, from the tree (|codetour-tree|) or from a marker
-(|codetour-markers|).
+{name} [step]` (a title, a file name or a unique part of the title), from
+the tree (|codetour-tree|) or from a marker (|codetour-markers|).
 
 Each step opens its file at the step's line and shows the description in a
 window right below that line. Space is reserved underneath the line so the
@@ -103,9 +103,14 @@ Mappings inside the step window (see `player.keymaps`):
   `q`        Hide the step window (the tour stays active)
   `Q`        End the tour
   `<Esc>`    Go back to the code window
+  `gx`       Activate the link under the cursor
+  `<C-o>`    Jump back in the code window (e.g. after following a link)
 
 By default the cursor moves into the step window whenever a step is shown
-(`player.focus`), so these keys work right away. Use `:CodeTour resume` to
+(`player.focus`), so these keys work right away. Files opened from the step
+window or the tree (with `:edit`, a file picker, ...) open in the code
+window, and the tour stays on the current step, so you can open another file
+and `:CodeTour add_step` there to add the next step. Use `:CodeTour resume` to
 show the current step again after exploring other files, and `:CodeTour
 links` to pick one of the step's links.
 
@@ -166,8 +171,9 @@ contents; writing that buffer saves the contents back into the tour.
 :CodeTour                       Toggle the tour tree.
 
 Taking tours ~
-:CodeTour start [tour] [step]   Start a tour (by title or file name) at a
-                                1-based step. Without a tour, pick one.
+:CodeTour start [tour] [step]   Start a tour (by title, file name or a
+                                unique part of the title) at a 1-based
+                                step. Without a tour, pick one.
 :CodeTour next                  Go to the next step.
 :CodeTour prev                  Go to the previous step.
 :CodeTour goto {step}           Go to a 1-based step.
@@ -351,7 +357,7 @@ others with the `commands` option: >lua
 
 Defaults: >lua
     require("codetour").setup({
-      -- Ask to start a tour the first time a workspace with tours is opened.
+      -- Mention the tours the first time a workspace with tours is opened.
       prompt_for_workspace_tours = true,
       -- How new steps are anchored: "lineNumber" or "pattern".
       record_mode = "lineNumber",
@@ -370,6 +376,12 @@ Defaults: >lua
         max_width = 100,
         max_height = 20,
         border = "rounded",
+        -- render-markdown.nvim config for step windows (they stay rendered
+        -- under the cursor; the step editor is never rendered).
+        render_markdown = {
+          anti_conceal = { enabled = false },
+          win_options = { concealcursor = { rendered = "nc" } },
+        },
         keymaps = {        -- false disables a mapping
           next = "n", prev = "p", open_link = "<CR>", next_link = "<Tab>",
           prev_link = "<S-Tab>", edit = "e", hide = "q", end_tour = "Q",
@@ -423,7 +435,8 @@ list, "explorer" Neo-tree/nvim-tree/oil/netrw, "scm" Neogit/fugitive/lazygit,
   `record_tour(title?)`              Start recording a new tour.
   `select_tour(tours?, root?, step?)` Start the only tour or pick one.
   `start_default_tour()`             Start the primary tour or pick one.
-  `prompt_for_tour(root?, tours?)`   Offer to start a tour (once per root).
+  `prompt_for_tour(root?, tours?)`   Ask whether to start a tour (once per
+                                     workspace root).
   `next()`, `prev()`, `resume()`
   `get_tours()`, `get_active()`
   `status()`                         Text for a statusline component.

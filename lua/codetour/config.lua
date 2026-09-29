@@ -2,7 +2,7 @@ local M = {}
 
 ---@class codetour.Config
 M.defaults = {
-  -- Show a prompt the first time a workspace with tours is opened
+  -- Mention the tours the first time a workspace with tours is opened
   -- (VS Code: `codetour.promptForWorkspaceTours`).
   prompt_for_workspace_tours = true,
 
@@ -35,6 +35,12 @@ M.defaults = {
     max_width = 100,
     max_height = 20,
     border = "rounded",
+    -- render-markdown.nvim config used for step windows: keep the line under
+    -- the cursor rendered (the step is read-only, and link targets are ids).
+    render_markdown = {
+      anti_conceal = { enabled = false },
+      win_options = { concealcursor = { rendered = "nc" } },
+    },
     -- Buffer-local mappings inside the step window (false disables one).
     keymaps = {
       next = "n",

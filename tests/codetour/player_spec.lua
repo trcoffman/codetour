@@ -68,6 +68,42 @@ describe("codetour.player", function()
     assert.equals(vim.api.nvim_win_get_height(v.float) + 2, #virt_lines)
   end)
 
+  it("only reserves space in the window showing the step", function()
+    if not vim.api.nvim__ns_set then
+      return
+    end
+    actions.start_tour(state.tours[1], 1)
+    local v = view()
+    vim.api.nvim_set_current_win(v.win)
+    vim.cmd("vsplit")
+    local other = vim.api.nvim_get_current_win()
+    assert.equals(v.buf, vim.api.nvim_win_get_buf(other))
+    local function fill(win)
+      return vim.api.nvim_win_text_height(win, {}).fill
+    end
+    assert.is_true(fill(v.win) > 0)
+    assert.equals(0, fill(other))
+  end)
+
+  it("scrolls so the step line and its window are both visible", function()
+    helpers.setup({ player = { max_height = 30 } })
+    local long = {}
+    for i = 1, 25 do
+      long[i] = "line " .. i
+    end
+    local t = require("codetour.tourfile").parse(
+      helpers.tour({ title = "Tall", steps = { { file = "src/app.js", line = 60, description = table.concat(long, "\n") } } }),
+      root .. "/.tours/tall.tour"
+    )
+    actions.start_tour(t)
+    local v = view()
+    local top, bottom = vim.fn.line("w0", v.win), vim.api.nvim_win_get_height(v.win)
+    local float_rows = vim.api.nvim_win_get_height(v.float) + 2
+    -- Rows from the top of the window to the end of the step window.
+    local used = vim.api.nvim_win_text_height(v.win, { start_row = top - 1, end_row = v.line }).all + float_rows
+    assert.is_true(used <= bottom, ("step window ends at row %d of %d"):format(used, bottom))
+  end)
+
   it("locates steps by pattern and puts steps without a line at the end", function()
     actions.start_tour(state.tours[1], 2)
     assert.equals(80, view().line)
@@ -100,6 +136,7 @@ describe("codetour.player", function()
     actions.start_tour(state.tours[1], 5)
     assert.equals("codetour://src", vim.api.nvim_buf_get_name(view().buf))
     assert.same({ "src/", "src/lib/", "src/app.js", "src/unicode.js" }, helpers.lines(view().buf))
+    assert.equals(0, view().line)
     assert.equals(root .. "/src", revealed)
   end)
 
@@ -144,6 +181,54 @@ describe("codetour.player", function()
     assert.is_nil(state.active)
   end)
 
+  it("keeps the cursor line of the step rendered", function()
+    actions.start_tour(state.tours[1], 0)
+    assert.equals("nc", vim.wo[view().float].concealcursor)
+    helpers.run(function()
+      require("codetour.recorder").edit()
+    end)
+    vim.cmd("stopinsert")
+    -- The step editor shows the raw markdown.
+    assert.equals(0, vim.wo[view().float].conceallevel)
+  end)
+
+  it("opens links with gx and jumps back with <C-o>", function()
+    actions.start_tour(state.tours[1], 0)
+    actions.next()
+    local code_win = view().win
+    vim.api.nvim_set_current_win(view().float)
+    helpers.feed("<C-o>")
+    assert.equals(code_win, vim.api.nvim_get_current_win())
+    assert.equals("codetour://CodeTour", vim.api.nvim_buf_get_name(0))
+
+    actions.goto_step(1)
+    vim.api.nvim_set_current_win(view().float)
+    vim.api.nvim_win_set_cursor(0, { 3, 7 })
+    helpers.feed("gx")
+    assert.equals(2, state.active.step)
+  end)
+
+  it("moves files opened in the step window (e.g. by a picker) to the code window", function()
+    actions.start_tour(state.tours[1], 5)
+    local v = view()
+    local code_win = v.win
+    assert.is_true(vim.b[v.buf].snacks_main)
+    local file = vim.fn.bufadd(root .. "/src/unicode.js")
+    vim.fn.bufload(file)
+    -- What snacks.nvim does when the step window is its target.
+    vim.api.nvim_set_current_win(v.float)
+    vim.cmd("buffer " .. file)
+    vim.api.nvim_win_set_cursor(0, { 1, 3 })
+    vim.wait(200, function()
+      return vim.api.nvim_get_current_win() == code_win
+    end)
+    assert.equals(code_win, vim.api.nvim_get_current_win())
+    assert.equals(file, vim.api.nvim_win_get_buf(code_win))
+    assert.same({ 1, 3 }, vim.api.nvim_win_get_cursor(code_win))
+    assert.is_false(player.is_visible())
+    assert.is_not_nil(state.active)
+  end)
+
   it("keeps the focus in place when `player.focus` is off", function()
     helpers.setup({ player = { focus = false } })
     local win = vim.api.nvim_get_current_win()
@@ -184,6 +269,30 @@ describe("codetour.player", function()
       return float_config().hide
     end)
     assert.is_true(float_config().hide)
+  end)
+
+  it("shortens the step window instead of covering code when it doesn't fit", function()
+    actions.start_tour(state.tours[1], 1)
+    local v = view()
+    local full = vim.api.nvim_win_get_height(v.float)
+    vim.api.nvim_set_current_win(v.win)
+    -- Scroll so that only a few rows are left below the step line.
+    local height = vim.api.nvim_win_get_height(v.win)
+    vim.fn.winrestview({ topline = v.line + 1 - (height - 5) })
+    vim.api.nvim_exec_autocmds("WinScrolled", {})
+    vim.wait(200, function()
+      return vim.api.nvim_win_get_height(v.float) < full
+    end)
+    assert.equals(2, vim.api.nvim_win_get_height(v.float))
+    assert.is_false(vim.api.nvim_win_get_config(v.float).hide)
+
+    -- With room again, the full step window comes back.
+    vim.fn.winrestview({ topline = v.line + 1 })
+    vim.api.nvim_exec_autocmds("WinScrolled", {})
+    vim.wait(200, function()
+      return vim.api.nvim_win_get_height(v.float) == full
+    end)
+    assert.equals(full, vim.api.nvim_win_get_height(v.float))
   end)
 
   it("runs step commands and focuses views when navigating to a step", function()

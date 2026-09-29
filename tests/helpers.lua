@@ -6,6 +6,7 @@ local original = {
   select = vim.ui.select,
   open = vim.ui.open,
   notify = vim.notify,
+  list_uis = vim.api.nvim_list_uis,
 }
 
 M.notifications = {}
@@ -18,6 +19,7 @@ function M.reset()
   end
 
   vim.ui.input, vim.ui.select, vim.ui.open = original.input, original.select, original.open
+  vim.api.nvim_list_uis = original.list_uis
   M.notifications = {}
   vim.notify = function(msg, level)
     table.insert(M.notifications, { msg = msg, level = level })

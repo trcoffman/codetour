@@ -1,0 +1,11 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Test",
+  "steps": [
+    {
+      "file": "README.md",
+      "description": "Test first step",
+      "line": 7
+    }
+  ]
+}

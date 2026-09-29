@@ -56,6 +56,9 @@ function M.scratch_buffer(name, opts)
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false
   vim.b[buf].codetour_scratch = true
+  -- Pickers (snacks.nvim) usually skip non-file buffers when choosing where to
+  -- open a file; windows showing a step are fine targets.
+  vim.b[buf].snacks_main = true
   if opts.lines and not vim.bo[buf].modified then
     vim.bo[buf].readonly = false
     vim.bo[buf].modifiable = true
@@ -222,9 +225,11 @@ function M.resolve_line(tour, index, step, buf)
     end
   end
 
-  -- Steps without a line are shown at the end of the file (like VS Code).
   if line == nil then
-    line = count - 1
+    -- File steps without a line are shown at the end of the file (like VS
+    -- Code); directory and content steps below the first line of their
+    -- buffer (the directory name, for directory steps).
+    line = (step.file or step.uri or step.contents) and count - 1 or 0
   end
   return math.max(0, math.min(line, count - 1))
 end
@@ -287,6 +292,43 @@ local function pick_window(buf)
     end
   end
   return create_window()
+end
+
+--- Moves a buffer that was opened in the step window or the tree (e.g. by a
+--- file picker) to a code window, and restores the plugin's window.
+---@param win integer
+function M.rehome(win)
+  if not vim.api.nvim_win_is_valid(win) then
+    return
+  end
+  -- { kind = "step"|"tree", buf = the buffer the window is meant to show }
+  local guard = vim.w[win].codetour_window
+  local buf = vim.api.nvim_win_get_buf(win)
+  if type(guard) ~= "table" or buf == guard.buf then
+    return
+  end
+  local stale = (guard.kind == "step" and win ~= view.float)
+    or (guard.kind == "tree" and not vim.api.nvim_buf_is_valid(guard.buf))
+  if stale then
+    -- The window isn't ours anymore (e.g. the tree buffer was deleted).
+    vim.w[win].codetour_window = nil
+    return
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(win)
+  if guard.kind == "tree" then
+    vim.api.nvim_win_set_buf(win, guard.buf)
+  else
+    -- The step window's own buffer was wiped when it was replaced; closing
+    -- the window behaves like the user closing it (`:CodeTour resume` shows
+    -- the step again).
+    vim.api.nvim_win_close(win, true)
+  end
+
+  local target = pick_window(buf)
+  vim.api.nvim_win_set_buf(target, buf)
+  pcall(vim.api.nvim_win_set_cursor, target, cursor)
+  vim.api.nvim_set_current_win(target)
 end
 
 local function show_buffer(win, buf)
@@ -482,6 +524,50 @@ local function set_keymaps(buf, mode)
     require("codetour.actions").end_tour()
   end, "End tour")
   map(keys.unfocus, M.focus_code, "Focus code")
+  -- `gx` usually opens the URL under the cursor; here links point at actions.
+  map("gx", M.open_link, "Open link")
+  -- The step window can't switch buffers, so jump from the code window.
+  map("<C-o>", function()
+    local count = vim.v.count1
+    M.focus_code()
+    vim.cmd(("normal! %d\15"):format(count))
+  end, "Jump back in the code window")
+end
+
+--- Sets up a window showing markdown: wrapping, conceal and rendering by
+--- render-markdown.nvim / markview.nvim (or treesitter highlighting).
+---@param rendered boolean render the markdown (false shows the raw text, for editing)
+function M.setup_markdown_window(win, buf, rendered)
+  local wo = vim.wo[win]
+  wo.wrap = true
+  wo.linebreak = true
+  -- Read-only content stays concealed on the cursor line too, so moving the
+  -- cursor through a step doesn't reveal link syntax.
+  wo.conceallevel = rendered and 2 or 0
+  wo.concealcursor = rendered and "nc" or ""
+  wo.number = false
+  wo.relativenumber = false
+  wo.signcolumn = "no"
+  wo.foldcolumn = "0"
+  wo.cursorline = false
+
+  -- render-markdown attaches when the filetype is set, so its per-buffer
+  -- config has to be registered first. Steps are rendered without its
+  -- "anti-conceal" (which shows the raw cursor line); the step editor isn't
+  -- rendered at all, because CodeTour's syntax (e.g. `>> cmd`) isn't regular
+  -- markdown and would be rendered misleadingly.
+  local ok, render_markdown = pcall(require, "render-markdown")
+  if ok and type(render_markdown.render) == "function" then
+    local rm_config = rendered and config.get().player.render_markdown or { enabled = false }
+    pcall(render_markdown.render, { buf = buf, win = win, config = rm_config })
+  end
+
+  vim.bo[buf].filetype = "markdown"
+  if not vim.treesitter.highlighter.active[buf] then
+    pcall(vim.treesitter.start, buf, "markdown")
+  end
+  -- Markdown ftplugins and user autocmds often turn spell checking on.
+  wo.spell = false
 end
 
 local function create_editor_buffer(active)
@@ -603,6 +689,27 @@ end
 
 -- Keeps the step window in sync with its code window (hidden while the anchor
 -- line is scrolled out of view or another buffer is shown).
+-- Rows available for the step window below its anchor line, or nil when
+-- the anchor line isn't visible.
+local function rows_below_anchor()
+  -- line("w0") and line("w$") also bring the window's view up to date.
+  local top, bottom = vim.fn.line("w0", view.win), vim.fn.line("w$", view.win)
+  if view.line + 1 < top or view.line + 1 > bottom then
+    return nil
+  end
+  local pos = vim.fn.screenpos(view.win, view.line + 1, 1)
+  if pos.row == 0 then
+    return nil
+  end
+  local info = vim.fn.getwininfo(view.win)[1]
+  local last_row = info.winrow + (info.winbar or 0) + info.height - 1
+  local text = vim.api.nvim_win_text_height(view.win, { start_row = view.line, end_row = view.line })
+  return last_row - (pos.row + text.all - text.fill) + 1 - border_rows()
+end
+
+-- Keeps the step window in sync with its code window: hidden while the anchor
+-- line is scrolled out of view or another buffer is shown, and shortened
+-- (instead of being pushed over the code) when it doesn't fit below the line.
 local function update_visibility()
   if not (view.float and vim.api.nvim_win_is_valid(view.float)) then
     return
@@ -611,9 +718,13 @@ local function update_visibility()
     return M.hide()
   end
   local visible = vim.api.nvim_win_get_buf(view.win) == view.buf
+  local height = view.height
   if visible then
-    local top, bottom = vim.fn.line("w0", view.win), vim.fn.line("w$", view.win)
-    visible = view.line + 1 >= top and view.line + 1 <= bottom
+    local available = rows_below_anchor()
+    visible = available ~= nil and available >= 1
+    if visible and height then
+      height = math.min(height, available)
+    end
   end
   if view.hidden ~= not visible then
     view.hidden = not visible
@@ -621,6 +732,9 @@ local function update_visibility()
     if view.hidden and vim.api.nvim_get_current_win() == view.float then
       M.focus_code()
     end
+  end
+  if visible and height and vim.api.nvim_win_get_height(view.float) ~= height then
+    vim.api.nvim_win_set_height(view.float, height)
   end
 end
 
@@ -670,29 +784,13 @@ local function open_float(active, mode)
   local cfg = float_config(width, height, mode, active)
   local win = vim.api.nvim_open_win(float_buf, false, cfg)
   view.float, view.float_buf, view.mode, view.hidden = win, float_buf, mode, false
+  view.height = height
 
-  local wo = vim.wo[win]
-  wo.wrap = true
-  wo.linebreak = true
-  wo.conceallevel = 2
-  wo.concealcursor = ""
-  wo.number = false
-  wo.relativenumber = false
-  wo.signcolumn = "no"
-  wo.foldcolumn = "0"
-  wo.cursorline = false
-  wo.spell = false
-  wo.winhighlight = "NormalFloat:CodeTourFloat,FloatBorder:CodeTourBorder"
-  -- Don't let `:edit` and friends replace the step inside its window.
-  wo.winfixbuf = true
-
-  -- Let markdown renderers (render-markdown.nvim, markview.nvim, ...) and
-  -- treesitter highlight the step.
-  vim.bo[float_buf].filetype = "markdown"
-  if not vim.treesitter.highlighter.active[float_buf] then
-    pcall(vim.treesitter.start, float_buf, "markdown")
-  end
-  wo.spell = false
+  M.setup_markdown_window(win, float_buf, mode == "preview")
+  vim.wo[win].winhighlight = "NormalFloat:CodeTourFloat,FloatBorder:CodeTourBorder"
+  -- Files opened in the step window (by `:edit`, pickers, ...) are moved to
+  -- the code window, see M.rehome().
+  vim.w[win].codetour_window = { kind = "step", buf = float_buf }
   set_keymaps(float_buf, mode)
 end
 
@@ -709,12 +807,16 @@ local function reveal(step)
     block_top = math.min(line, math.max(0, step.selection.start.line - 1))
   end
 
+  -- The space reserved below the step line counts as filler of the *next*
+  -- line, so add the step window's rows explicitly.
+  local float_rows = view.height and (view.height + border_rows()) or 0
+
   local anchor, target
-  local block = rows(block_top, line)
+  local block = rows(block_top, line) + float_rows
   if block <= height then
     anchor, target = block_top, math.floor((height - block) / 2)
   else
-    anchor, target = line, math.max(0, height - rows(line, line))
+    anchor, target = line, math.max(0, height - rows(line, line) - float_rows)
   end
 
   local top, used = anchor, 0
@@ -792,6 +894,12 @@ function M.render(opts)
   close_float()
   clear_decorations()
   view.win, view.buf, view.root = win, target.buf, active.root
+  -- Reserve space (and highlight the selection) only in the window showing
+  -- the step, not in other windows showing the same buffer. The API is
+  -- experimental, so it's optional.
+  if vim.api.nvim__ns_set then
+    pcall(vim.api.nvim__ns_set, ns, { wins = { win } })
+  end
   view.line = M.resolve_line(active.tour, active.step, step, target.buf)
 
   local mode = (state.recording and state.editing) and "edit" or "preview"
@@ -824,11 +932,18 @@ function M.render(opts)
   update_visibility()
 
   -- Lay out again once the code window was redrawn (its sign column may have
-  -- appeared) and once markdown renderers have processed the step.
+  -- appeared) and once markdown renderers have processed the step. If that
+  -- changes the height, scroll again so the whole step window is visible.
   local float = view.float
   local function relayout()
-    if view.float == float then
-      M.relayout()
+    if view.float ~= float then
+      return
+    end
+    local before = view.height
+    M.relayout()
+    if opts.reveal ~= false and view.height ~= before and vim.api.nvim_win_get_buf(view.win) == view.buf then
+      reveal(step)
+      update_visibility()
     end
   end
   vim.schedule(relayout)
@@ -869,10 +984,12 @@ function M.relayout()
     return
   end
   local width, height = float_geometry(view.win, view.float_buf, view.mode, view.float)
+  view.height = height
   reserve_space(height + border_rows())
   local cfg = float_config(width, height, view.mode, state.active)
   cfg.hide = view.hidden
   vim.api.nvim_win_set_config(view.float, cfg)
+  update_visibility()
 end
 
 --- Closes the step window but keeps the tour active (`:CodeTour resume`
