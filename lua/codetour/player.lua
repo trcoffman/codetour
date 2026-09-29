@@ -1,7 +1,8 @@
 -- Shows the current step: opens its file at the right line and displays the
 -- step description in a window anchored below that line (the equivalent of
 -- the comment thread VS Code uses). Virtual lines are reserved underneath the
--- anchor line so the step window never hides code.
+-- anchor line so the step window never hides code. Content steps (not
+-- attached to any code) are shown as a markdown page in the code window.
 
 local config = require("codetour.config")
 local markdown = require("codetour.markdown")
@@ -19,7 +20,8 @@ local group = vim.api.nvim_create_augroup("codetour_player", { clear = true })
 ---@field line? integer 0-based line the step window is anchored to
 ---@field root? string
 ---@field float? integer
----@field float_buf? integer
+---@field float_buf? integer buffer showing the description (the step window's or the page)
+---@field page? boolean the step is shown as a page in `win` instead of a step window
 ---@field mode? "preview"|"edit"
 ---@field actions table[] link actions of the step window
 ---@field hidden? boolean
@@ -194,7 +196,8 @@ function M.resolve_target(tour, step, root)
     return { buf = buf, kind = "directory", path = path }
   end
 
-  return { buf = M.scratch_buffer("codetour://CodeTour", { lines = { "" } }), kind = "content" }
+  -- Filled by M.render(): the step as a page, or empty behind the step editor.
+  return { buf = M.scratch_buffer("codetour://CodeTour"), kind = "content" }
 end
 
 -- Line resolution -------------------------------------------------------------
@@ -469,8 +472,9 @@ local function content_height(lines, width)
   return rows
 end
 
+---@param mode "preview"|"edit"|"page"
 local function set_keymaps(buf, mode)
-  if mode ~= "preview" then
+  if mode == "edit" then
     return
   end
   local keys = config.get().player.keymaps
@@ -502,9 +506,13 @@ local function set_keymaps(buf, mode)
   map(keys.end_tour, function()
     require("codetour.actions").end_tour()
   end, "End tour")
-  map(keys.unfocus, M.focus_code, "Focus code")
   -- `gx` usually opens the URL under the cursor; here links point at actions.
   map("gx", M.open_link, "Open link")
+  if mode == "page" then
+    -- The page is in the code window already, and <C-o> works as usual.
+    return
+  end
+  map(keys.unfocus, M.focus_code, "Focus code")
   -- The step window can't switch buffers, so jump from the code window.
   map("<C-o>", function()
     local count = vim.v.count1
@@ -516,19 +524,28 @@ end
 --- Sets up a window showing markdown: wrapping, conceal and rendering by
 --- render-markdown.nvim / markview.nvim (or treesitter highlighting).
 ---@param rendered boolean render the markdown (false shows the raw text, for editing)
-function M.setup_markdown_window(win, buf, rendered)
-  local wo = vim.wo[win]
-  wo.wrap = true
-  wo.linebreak = true
+---@param opts? { buffer_local?: boolean } set window options only for `buf` (like `:setlocal`),
+--- for a window that shows other buffers too
+function M.setup_markdown_window(win, buf, rendered, opts)
+  local buffer_local = opts and opts.buffer_local
+  local function set(name, value)
+    if buffer_local then
+      vim.api.nvim_set_option_value(name, value, { scope = "local", win = win })
+    else
+      vim.wo[win][name] = value
+    end
+  end
+  set("wrap", true)
+  set("linebreak", true)
   -- Read-only content stays concealed on the cursor line too, so moving the
   -- cursor through a step doesn't reveal link syntax.
-  wo.conceallevel = rendered and 2 or 0
-  wo.concealcursor = rendered and "nc" or ""
-  wo.number = false
-  wo.relativenumber = false
-  wo.signcolumn = "no"
-  wo.foldcolumn = "0"
-  wo.cursorline = false
+  set("conceallevel", rendered and 2 or 0)
+  set("concealcursor", rendered and "nc" or "")
+  set("number", false)
+  set("relativenumber", false)
+  set("signcolumn", "no")
+  set("foldcolumn", "0")
+  set("cursorline", false)
 
   -- render-markdown attaches when the filetype is set, so its per-buffer
   -- config has to be registered first. Steps are rendered without its
@@ -541,12 +558,14 @@ function M.setup_markdown_window(win, buf, rendered)
     pcall(render_markdown.render, { buf = buf, win = win, config = rm_config })
   end
 
-  vim.bo[buf].filetype = "markdown"
+  if vim.bo[buf].filetype ~= "markdown" then
+    vim.bo[buf].filetype = "markdown"
+  end
   if not vim.treesitter.highlighter.active[buf] then
     pcall(vim.treesitter.start, buf, "markdown")
   end
   -- Markdown ftplugins and user autocmds often turn spell checking on.
-  wo.spell = false
+  set("spell", false)
 end
 
 local function create_editor_buffer(active)
@@ -773,6 +792,67 @@ local function open_float(active, mode)
   set_keymaps(float_buf, mode)
 end
 
+-- Replaces the contents of a read-only scratch buffer.
+local function set_scratch_lines(buf, lines)
+  vim.bo[buf].readonly = false
+  vim.bo[buf].modifiable = true
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].readonly = true
+  vim.bo[buf].modified = false
+end
+
+local function escape_statusline(text)
+  return (text:gsub("%%", "%%%%"))
+end
+
+-- Shows a content step as a page of markdown in the code window: there's no
+-- code to show it next to, and a page has room for a long overview.
+---@param reveal boolean show the top of the page (false keeps the view, e.g. after an edit)
+local function show_page(active, win, buf, reveal)
+  local saved = not reveal and vim.api.nvim_win_get_buf(win) == buf and vim.api.nvim_win_call(win, vim.fn.winsaveview)
+  local b = M.build_preview(active)
+  set_scratch_lines(buf, b:lines())
+  view.float_buf, view.mode, view.page, view.actions = buf, "preview", true, b.actions
+
+  M.setup_markdown_window(win, buf, true, { buffer_local = true })
+  local winbar = "%#CodeTourTitle#" .. escape_statusline(title_for(active, "preview")) .. "%*"
+  local hints = key_hints("preview")
+  if hints then
+    winbar = winbar .. "%=%#CodeTourFooter#" .. escape_statusline(hints) .. "%*"
+  end
+  vim.api.nvim_set_option_value("winbar", winbar, { scope = "local", win = win })
+  set_keymaps(buf, "page")
+  vim.api.nvim_win_call(win, function()
+    vim.fn.winrestview(saved or { lnum = 1, col = 0, topline = 1, leftcol = 0 })
+  end)
+end
+
+local function page_shown()
+  return view.page == true
+    and view.win ~= nil
+    and vim.api.nvim_win_is_valid(view.win)
+    and vim.api.nvim_win_get_buf(view.win) == view.buf
+end
+
+-- Replaces the page with the buffer shown before it.
+local function leave_page()
+  if not page_shown() then
+    return
+  end
+  local win = view.win
+  local alternate = vim.api.nvim_win_call(win, function()
+    return vim.fn.bufnr("#")
+  end)
+  if alternate > 0 and alternate ~= view.buf and vim.api.nvim_buf_is_valid(alternate) and not vim.b[alternate].codetour_scratch then
+    vim.api.nvim_win_set_buf(win, alternate)
+  else
+    vim.api.nvim_win_call(win, function()
+      vim.cmd.enew()
+    end)
+  end
+end
+
 -- Scrolls so the step line, its selection and the step window are visible.
 local function reveal(step)
   local win, line = view.win, view.line
@@ -861,7 +941,7 @@ function M.render(opts)
   end
 
   local current = vim.api.nvim_get_current_win()
-  local was_focused = view.float ~= nil and current == view.float
+  local was_focused = (view.float ~= nil and current == view.float) or (page_shown() and current == view.win)
   local target = M.resolve_target(active.tour, step, active.root)
   local win = pick_window(target.buf)
   local ok, err = pcall(show_buffer, win, target.buf)
@@ -872,7 +952,27 @@ function M.render(opts)
 
   close_float()
   clear_decorations()
-  view.win, view.buf, view.root = win, target.buf, active.root
+  view.win, view.buf, view.root, view.page = win, target.buf, active.root, nil
+  local mode = (state.recording and state.editing) and "edit" or "preview"
+
+  if target.kind == "content" and mode == "preview" then
+    show_page(active, win, target.buf, opts.reveal ~= false)
+    watch()
+    if was_focused or (opts.focus and config.get().player.focus) or not vim.api.nvim_win_is_valid(current) then
+      vim.api.nvim_set_current_win(win)
+    else
+      vim.api.nvim_set_current_win(current)
+    end
+    if opts.navigated then
+      run_step_extras(step, active.root)
+    end
+    return
+  elseif target.kind == "content" then
+    -- The step editor is anchored to the (empty) first line.
+    set_scratch_lines(target.buf, { "" })
+    vim.api.nvim_set_option_value("winbar", "", { scope = "local", win = win })
+  end
+
   -- Reserve space (and highlight the selection) only in the window showing
   -- the step, not in other windows showing the same buffer. The API is
   -- experimental, so it's optional.
@@ -881,7 +981,6 @@ function M.render(opts)
   end
   view.line = M.resolve_line(active.tour, active.step, step, target.buf)
 
-  local mode = (state.recording and state.editing) and "edit" or "preview"
   open_float(active, mode)
   if opts.reveal ~= false then
     place_cursor(step)
@@ -958,6 +1057,10 @@ function M.relayout()
   if not (view.float and vim.api.nvim_win_is_valid(view.float) and state.active) then
     return
   end
+  if vim.api.nvim_win_get_buf(view.float) ~= view.float_buf then
+    -- A file was opened in the step window (M.rehome() moves it).
+    return
+  end
   if not (view.win and vim.api.nvim_win_is_valid(view.win)) or vim.api.nvim_win_get_buf(view.win) ~= view.buf then
     -- The step window is hidden while another buffer is shown.
     return
@@ -974,10 +1077,11 @@ end
 --- Closes the step window but keeps the tour active (`:CodeTour resume`
 --- shows it again).
 function M.hide()
+  leave_page()
   close_float()
   clear_decorations()
   vim.api.nvim_clear_autocmds({ group = group })
-  view.mode = nil
+  view.mode, view.page = nil, nil
 end
 
 --- Closes the step window and forgets the view.
@@ -991,7 +1095,7 @@ function M.close()
 end
 
 function M.is_visible()
-  return view.float ~= nil and vim.api.nvim_win_is_valid(view.float)
+  return (view.float ~= nil and vim.api.nvim_win_is_valid(view.float)) or page_shown()
 end
 
 --- Whether the step editor has unsaved changes.
@@ -1001,7 +1105,9 @@ function M.has_unsaved_edits()
 end
 
 function M.focus()
-  if M.is_visible() and not view.hidden then
+  if page_shown() then
+    vim.api.nvim_set_current_win(view.win)
+  elseif M.is_visible() and not view.hidden then
     vim.api.nvim_set_current_win(view.float)
   end
 end

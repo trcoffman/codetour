@@ -6,7 +6,7 @@ CodeTour is a Visual Studio Code extension, which allows you to record and play 
 
 ## Neovim
 
-This repository also contains a Neovim plugin with the same features as the VS Code extension. It reads and writes the same `*.tour` files (in the same format), so a team can take and edit tours from either editor. Each step opens its file at the right line and shows the description in a window anchored below that line, rendered by [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) (or markview.nvim) when installed.
+This repository also contains a Neovim plugin with the same features as the VS Code extension. It reads and writes the same `*.tour` files (in the same format), so a team can take and edit tours from either editor. Each step opens its file at the right line and shows the description in a window anchored below that line (content steps, like an overview, get a page of their own), rendered by [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) (or markview.nvim) when installed.
 
 Requires Neovim 0.10+. With [lazy.nvim](https://github.com/folke/lazy.nvim):
 

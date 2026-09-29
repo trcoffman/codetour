@@ -90,6 +90,12 @@ window right below that line. Space is reserved underneath the line so the
 window never hides the code. The window is hidden while its line is scrolled
 out of view or another buffer is shown, and comes back when you return.
 
+Content steps (not attached to a file or directory, e.g. an overview) are
+shown as a markdown page in the code window instead, with the step's title
+and the mappings in the 'winbar'. The same mappings work on the page, and `q`
+goes back to the buffer shown before it. When you edit a content step, the
+step editor is shown in a window as usual.
+
 The step window ends with navigation links, like the VS Code comment thread:
 "Previous", "Next", "Finish Tour", and "Previous Tour"/"Next Tour" for
 linked tours (|codetour-linking|).
