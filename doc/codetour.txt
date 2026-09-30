@@ -87,8 +87,9 @@ the tree (|codetour-tree|) or from a marker (|codetour-markers|).
 
 Each step opens its file at the step's line and shows the description in a
 window right below that line. Space is reserved underneath the line so the
-window never hides the code. The window is hidden while its line is scrolled
-out of view or another buffer is shown, and comes back when you return.
+window never hides the code. The window scrolls with the code: when part of
+that space is scrolled out of view, so is that part of the window. It's
+hidden while another buffer is shown, and comes back when you return.
 
 Content steps (not attached to a file or directory, e.g. an overview) are
 shown as a markdown page in the code window instead, with the step's title

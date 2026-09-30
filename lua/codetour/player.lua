@@ -26,6 +26,10 @@ local group = vim.api.nvim_create_augroup("codetour_player", { clear = true })
 ---@field mode? "preview"|"edit"
 ---@field actions table[] link actions of the step window
 ---@field hidden? boolean
+---@field height? integer height of the step window's text when it's fully visible
+---@field layout? string how the step window was last fitted into the code window
+---@field skip? integer screen lines of the step window's text scrolled out with the code
+---@field border? table the step window's border characters
 local view = { actions = {} }
 
 -- Set while we close our own windows so WinClosed handlers ignore it.
@@ -653,6 +657,8 @@ local function float_config(width, height, mode, active)
     relative = "win",
     win = view.win,
     bufpos = { view.line, 0 },
+    -- Explicit, as nvim_win_set_config() keeps what update_visibility() set.
+    anchor = "NW",
     row = math.max(1, text.all - text.fill),
     col = 0,
     width = width,
@@ -698,29 +704,41 @@ local function close_float()
   view.float, view.float_buf = nil, nil
 end
 
--- Keeps the step window in sync with its code window (hidden while the anchor
--- line is scrolled out of view or another buffer is shown).
--- Rows available for the step window below its anchor line, or nil when
--- the anchor line isn't visible.
-local function rows_below_anchor()
+-- Where the space reserved for the step window is on the screen: nil while
+-- it's out of view, else how many of its rows are visible and whether it's
+-- cut off at the top of the window (the step's line is scrolled out of view)
+-- rather than at the bottom.
+---@return { rows: integer, top: boolean }?
+local function reserved_space()
   -- line("w0") and line("w$") also bring the window's view up to date.
   local top, bottom = vim.fn.line("w0", view.win), vim.fn.line("w$", view.win)
-  if view.line + 1 < top or view.line + 1 > bottom then
-    return nil
+  local anchor = view.line + 1
+  local total = view.height + border_rows()
+  if anchor >= top and anchor <= bottom then
+    local pos = vim.fn.screenpos(view.win, anchor, 1)
+    if pos.row == 0 then
+      return nil
+    end
+    local info = vim.fn.getwininfo(view.win)[1]
+    local last_row = info.winrow + (info.winbar or 0) + info.height - 1
+    local text = vim.api.nvim_win_text_height(view.win, { start_row = view.line, end_row = view.line })
+    local rows = last_row - (pos.row + text.all - text.fill) + 1
+    return rows > 0 and { rows = math.min(rows, total), top = false } or nil
   end
-  local pos = vim.fn.screenpos(view.win, view.line + 1, 1)
-  if pos.row == 0 then
-    return nil
+  if anchor == top - 1 then
+    -- Scrolled just past the step's line: what's left of the reserved space
+    -- is shown as filler above the first line.
+    local topfill = vim.api.nvim_win_call(view.win, vim.fn.winsaveview).topfill or 0
+    if topfill > 0 then
+      return { rows = math.min(topfill, total), top = true }
+    end
   end
-  local info = vim.fn.getwininfo(view.win)[1]
-  local last_row = info.winrow + (info.winbar or 0) + info.height - 1
-  local text = vim.api.nvim_win_text_height(view.win, { start_row = view.line, end_row = view.line })
-  return last_row - (pos.row + text.all - text.fill) + 1 - border_rows()
 end
 
--- Keeps the step window in sync with its code window: hidden while the anchor
--- line is scrolled out of view or another buffer is shown, and shortened
--- (instead of being pushed over the code) when it doesn't fit below the line.
+-- Keeps the step window in sync with its code window: hidden while the space
+-- reserved for it is scrolled out of view or another buffer is shown, and
+-- cut to the part of that space that's visible otherwise (so it scrolls with
+-- the code instead of covering it).
 local function update_visibility()
   if not (view.float and vim.api.nvim_win_is_valid(view.float)) then
     return
@@ -728,15 +746,19 @@ local function update_visibility()
   if not (view.win and vim.api.nvim_win_is_valid(view.win)) then
     return M.hide()
   end
-  local visible = vim.api.nvim_win_get_buf(view.win) == view.buf
-  local height = view.height
-  if visible then
-    local available = rows_below_anchor()
-    visible = available ~= nil and available >= 1
-    if visible and height then
-      height = math.min(height, available)
-    end
+  local space = view.height and vim.api.nvim_win_get_buf(view.win) == view.buf and reserved_space() or nil
+  local border = border_rows()
+  -- The window's height, and how many of its rows are scrolled out at the
+  -- top: its top border first, then the first lines of the text.
+  local height, clipped
+  if space and not space.top then
+    height, clipped = math.min(view.height, space.rows - border), 0
+  elseif space then
+    clipped = view.height + border - space.rows
+    height = view.height - math.max(0, clipped - (border > 0 and 1 or 0))
   end
+  local visible = height ~= nil and height >= 1
+
   if view.hidden ~= not visible then
     view.hidden = not visible
     vim.api.nvim_win_set_config(view.float, { hide = view.hidden })
@@ -744,8 +766,38 @@ local function update_visibility()
       M.focus_code()
     end
   end
-  if visible and height and vim.api.nvim_win_get_height(view.float) ~= height then
-    vim.api.nvim_win_set_height(view.float, height)
+  if not visible then
+    return
+  end
+
+  local layout = ("%s %d %d"):format(space.top and "top" or "below", height, clipped)
+  if layout == view.layout then
+    return
+  end
+  view.layout = layout
+  local cfg = float_config(vim.api.nvim_win_get_width(view.float), height, view.mode, state.active)
+  if space.top then
+    -- Floats can't extend above their window, so stand on the line below
+    -- the reserved space, and drop what's scrolled out.
+    cfg.bufpos, cfg.anchor, cfg.row = { view.line + 1, 0 }, "SW", 0
+    if clipped > 0 and border > 0 and view.border then
+      local b = view.border
+      cfg.border = { "", "", "", b[4], b[5], b[6], b[7], b[8] }
+      cfg.title = ""
+    end
+  end
+  cfg.hide = false
+  vim.api.nvim_win_set_config(view.float, cfg)
+
+  local skip = space.top and math.max(0, clipped - (border > 0 and 1 or 0)) or 0
+  if skip ~= (view.skip or 0) then
+    view.skip = skip
+    vim.api.nvim_win_call(view.float, function()
+      vim.fn.winrestview({ topline = 1, skipcol = 0, lnum = 1, col = 0 })
+      if skip > 0 then
+        vim.cmd(("normal! %d\5"):format(skip))
+      end
+    end)
   end
 end
 
@@ -795,10 +847,17 @@ local function open_float(active, mode)
   local cfg = float_config(width, height, mode, active)
   local win = vim.api.nvim_open_win(float_buf, false, cfg)
   view.float, view.float_buf, view.mode, view.hidden = win, float_buf, mode, false
-  view.height = height
+  view.height, view.layout, view.skip = height, nil, 0
+  -- The border as characters (whatever the configured style), to drop its
+  -- top when the window is partly scrolled out of view.
+  view.border = border_rows() > 0 and vim.api.nvim_win_get_config(win).border or nil
 
   M.setup_markdown_window(win, float_buf, mode == "preview")
   vim.wo[win].winhighlight = "NormalFloat:CodeTourFloat,FloatBorder:CodeTourBorder"
+  -- Scroll by screen lines when following the code (see update_visibility()),
+  -- without 'scrolloff' moving the view back to the cursor.
+  vim.wo[win].smoothscroll = true
+  vim.api.nvim_set_option_value("scrolloff", 0, { scope = "local", win = win })
   -- Files opened in the step window (by `:edit`, pickers, ...) are moved to
   -- the code window, see M.rehome().
   vim.w[win].codetour_window = { kind = "step", buf = float_buf }
@@ -1110,6 +1169,7 @@ function M.relayout()
   local cfg = float_config(width, height, view.mode, state.active)
   cfg.hide = view.hidden
   vim.api.nvim_win_set_config(view.float, cfg)
+  view.layout = nil
   update_visibility()
 end
 

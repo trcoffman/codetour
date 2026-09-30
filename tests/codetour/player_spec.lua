@@ -405,6 +405,38 @@ describe("codetour.player", function()
       end)
     end
 
+    it("scrolls the step window out of view with the code", function()
+      local v = start({ { file = "src/app.js", line = 60, description = long } })
+      local total = v.height + 2
+      -- The step's line, the top border and the first two lines of text are
+      -- scrolled out of view.
+      vim.fn.winrestview({ lnum = 61, topline = 61, topfill = total - 3 })
+      player.relayout()
+      local cfg = float_config()
+      assert.is_false(cfg.hide)
+      assert.equals("SW", cfg.anchor)
+      assert.same({ 60, 0 }, cfg.bufpos)
+      assert.is_nil(cfg.title)
+      assert.equals(v.height - 2, cfg.height)
+      assert.equals(3, vim.fn.line("w0", v.float))
+
+      -- All of it.
+      vim.fn.winrestview({ lnum = 75, topline = 61, topfill = 0 })
+      player.relayout()
+      assert.is_true(float_config().hide)
+
+      -- Back, with room for all of it.
+      vim.fn.winrestview({ lnum = 60, topline = 60, topfill = 0 })
+      player.relayout()
+      cfg = float_config()
+      assert.is_false(cfg.hide)
+      assert.equals("NW", cfg.anchor)
+      assert.same({ 59, 0 }, cfg.bufpos)
+      assert.is_not_nil(cfg.title)
+      assert.equals(v.height, cfg.height)
+      assert.equals(1, vim.fn.line("w0", v.float))
+    end)
+
     it("leaves 'scrolloff' lines above the step's line", function()
       vim.o.scrolloff = 10
       local v = start({ { file = "src/app.js", line = 60, description = long } })
