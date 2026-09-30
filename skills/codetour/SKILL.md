@@ -27,13 +27,12 @@ path. Steps are numbered from 1. Locations (`--at`) are:
 - `FILE:/TEXT/` — the only line containing TEXT (plain text, not a regex).
   **Prefer this**: it's how you know the code, and it fails loudly when TEXT
   is missing or ambiguous (make TEXT longer then).
-- `FILE:/START/-/END/` — a selection from the only line containing START to
-  the next line containing END that isn't indented more than START's line.
-  So `src/a.ts:/function load(/-/}/` selects the whole function (up to its
-  closing `}`, skipping the inner ones). Use a selection when a step is about
-  a whole function or block; it's highlighted when the step is shown. For
-  code without a closing line (e.g. Python), use `FILE:FIRST-LAST`.
-- `FILE:LINE` or `FILE:FIRST-LAST` — line numbers, when text doesn't work.
+- `FILE:LINE` — a line number, when text doesn't work.
+- `FILE:/START/-/END/` or `FILE:FIRST-LAST` — a selection, highlighted when
+  the step is shown. `/START/-/END/` goes from the only line containing START
+  to the next line containing END that isn't indented more than START's line
+  (e.g. the `}` closing START's block). Keep selections to a few lines (see
+  "Choosing stops").
 
 `--pattern` (single lines only) anchors the step to TEXT itself instead of a
 line number, so the step keeps finding its line when code above it changes.
@@ -64,8 +63,8 @@ pattern step stays a pattern step when you move it with `edit --at` (pass
    codetour add request --at 'src/server.ts:/app.use(router)/' --pattern --title "Routing" --description - <<'EOF'
    Every request goes through `router`. Routes are registered in [#4].
    EOF
-   codetour add request --at 'src/handlers/user.ts:/export async function loadUser/-/}/' --title "Loading the user" --description - <<'EOF'
-   The whole handler is highlighted. Errors reach the middleware in [#6].
+   codetour add request --at 'src/handlers/user.ts:/export async function loadUser(/' --pattern --title "Loading the user" --description - <<'EOF'
+   `loadUser` looks the user up by the session id and caches it on the request. Notice the early return for guests: they never reach the database. Errors go to the middleware in [#6].
    EOF
    ```
 
@@ -81,6 +80,22 @@ pattern step stays a pattern step when you move it with `edit --at` (pass
 
    In `show`, check that the marked (`>`) lines are the code each description
    talks about. Fix a step with `codetour edit request 3 --at 'FILE:/TEXT/'`.
+
+## Choosing stops
+
+- Put each stop on a single line: the line that names what the step is
+  about. For a function, class or component, that's the line with its name
+  (`export async function loadUser(`), not its whole body. A big highlighted
+  block is tiring to read, and the reader sees the code right below the line
+  anyway.
+- When one line inside a function is the point (the call that does the work,
+  the condition that decides, the line with the bug), make that line its own
+  stop rather than highlighting the function around it.
+- Use a selection only for a short snippet (a few lines) whose extent
+  matters, e.g. a few statements that must stay together. Don't select a
+  whole function.
+- In the description, name the parts of the code the reader should notice
+  (the retry loop, the early return for guests) instead of highlighting them.
 
 ## Writing descriptions
 

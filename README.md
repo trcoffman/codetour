@@ -48,7 +48,7 @@ The `codetour` CLI (in [`src/cli`](src/cli), sharing its code with the extension
 npm install && npm run build              # builds dist/cli.js (bin/codetour runs it)
 codetour new "Request lifecycle"
 codetour add request --at 'src/server.ts:/app.use(router)/' --description "Every request starts here."
-codetour add request --at 'src/handlers/user.ts:12-30' --title "Loading the user" --description - < notes.md
+codetour add request --at 'src/handlers/user.ts:/export async function loadUser(/' --title "Loading the user" --description - < notes.md
 codetour show request                     # each step with the code it points at
 codetour validate                         # missing files/lines, broken links, ... (exit code 1 on errors)
 codetour fix --write                      # re-anchor steps after the code changed (uses git history)
