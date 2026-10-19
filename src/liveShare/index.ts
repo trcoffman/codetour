@@ -2,10 +2,10 @@
 // Licensed under the MIT License.
 
 import * as vsls from "vsls";
-import { EXTENSION_NAME } from "../constants";
+import { EXTENSION_ID } from "../constants";
 
 export async function registerLiveShareModule() {
-  const vslsApi = await vsls.getApi(`vsls-contrib.${EXTENSION_NAME}`);
+  const vslsApi = await vsls.getApi(EXTENSION_ID);
   if (!vslsApi) return;
 
   vslsApi.onDidChangeSession(e => {

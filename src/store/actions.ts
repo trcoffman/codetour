@@ -177,7 +177,7 @@ export async function promptForTour(
     if (
       await window.showInformationMessage(
         "This workspace has guided tours you can take to get familiar with the codebase.",
-        "Start CodeTour"
+        "Start CodeTour+"
       )
     ) {
       startDefaultTour(workspaceRoot, tours);

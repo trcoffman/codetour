@@ -21,7 +21,7 @@ import {
   window,
   workspace
 } from "vscode";
-import { SMALL_ICON_URL } from "../constants";
+import { EXTENSION_NAME, SMALL_ICON_URL, toExtensionCommand } from "../constants";
 import { resolveStepLine } from "../core/anchor";
 import {
   CODE_FENCE_PATTERN,
@@ -48,17 +48,19 @@ import { registerTextDocumentContentProvider } from "./fileSystem/documentProvid
 import { registerStatusBar } from "./status";
 import { registerTreeProvider } from "./tree";
 
-const CONTROLLER_ID = "codetour";
-const CONTROLLER_LABEL = "CodeTour";
+const CONTROLLER_ID = EXTENSION_NAME;
+const CONTROLLER_LABEL = "CodeTour+";
 
 let id = 0;
 
 
 export function generatePreviewContent(content: string) {
   return content
+    // Links written for the `.tour` format name commands as `codetour.<name>`.
+    .replace(/\(command:(codetour\.[\w.]+)/g, (_, command) => `(command:${toExtensionCommand(command)}`)
     .replace(SHELL_SCRIPT_PATTERN, (_, script) => {
       const args = encodeURIComponent(JSON.stringify([script]));
-      const s = `> [${script}](command:codetour.sendTextToTerminal?${args} "Run \\"${script.replace(
+      const s = `> [${script}](command:${EXTENSION_NAME}.sendTextToTerminal?${args} "Run \\"${script.replace(
         /"/g,
         "'"
       )}\\" in a terminal")`;
@@ -84,7 +86,7 @@ export function generatePreviewContent(content: string) {
     .replace(TOUR_REFERENCE_PATTERN, (_, linkTitle, tourTitle, stepNumber) => {
       if (!tourTitle) {
         const title = linkTitle || `#${stepNumber}`;
-        return `[${title}](command:codetour.navigateToStep?${stepNumber} "Navigate to step #${stepNumber}")`;
+        return `[${title}](command:${EXTENSION_NAME}.navigateToStep?${stepNumber} "Navigate to step #${stepNumber}")`;
       }
 
       const tours = store.activeTour?.tours || store.tours;
@@ -97,7 +99,7 @@ export function generatePreviewContent(content: string) {
         }
         const argsContent = encodeURIComponent(JSON.stringify(args));
         const title = linkTitle || tour.title;
-        return `[${title}](command:codetour.startTourByTitle?${argsContent} "Start \\"${tour.title}\\" tour")`;
+        return `[${title}](command:${EXTENSION_NAME}.startTourByTitle?${argsContent} "Start \\"${tour.title}\\" tour")`;
       }
 
       return _;
@@ -105,7 +107,7 @@ export function generatePreviewContent(content: string) {
     .replace(CODE_FENCE_PATTERN, (_, codeBlock) => {
       const params = encodeURIComponent(JSON.stringify([codeBlock]));
       return `${_}
-↪ [Insert Code](command:codetour.insertCodeSnippet?${params} "Insert Code")`;
+↪ [Insert Code](command:${EXTENSION_NAME}.insertCodeSnippet?${params} "Insert Code")`;
     });
 }
 
@@ -293,7 +295,7 @@ async function renderCurrentStep() {
         false
       );
       const suffix = stepLabel ? ` (${stepLabel})` : "";
-      content += `← [Previous${suffix}](command:codetour.previousTourStep "Navigate to previous step")`;
+      content += `← [Previous${suffix}](command:${EXTENSION_NAME}.previousTourStep "Navigate to previous step")`;
     } else {
       const previousTour = getPreviousTour();
       if (previousTour) {
@@ -303,7 +305,7 @@ async function renderCurrentStep() {
         const argsContent = encodeURIComponent(
           JSON.stringify([previousTour.title])
         );
-        content += `← [Previous Tour (${tourTitle})](command:codetour.startTourByTitle?${argsContent} "Navigate to previous tour")`;
+        content += `← [Previous Tour (${tourTitle})](command:${EXTENSION_NAME}.startTourByTitle?${argsContent} "Navigate to previous tour")`;
       }
     }
 
@@ -316,7 +318,7 @@ async function renderCurrentStep() {
         false
       );
       const suffix = stepLabel ? ` (${stepLabel})` : "";
-      content += `${prefix}[Next${suffix}](command:codetour.nextTourStep "Navigate to next step") →`;
+      content += `${prefix}[Next${suffix}](command:${EXTENSION_NAME}.nextTourStep "Navigate to next step") →`;
     } else if (isFinalStep) {
       const nextTour = getNextTour();
       if (nextTour) {
@@ -324,9 +326,9 @@ async function renderCurrentStep() {
         const argsContent = encodeURIComponent(
           JSON.stringify([nextTour.title])
         );
-        content += `${prefix}[Next Tour (${tourTitle})](command:codetour.finishTour?${argsContent} "Start next tour")`;
+        content += `${prefix}[Next Tour (${tourTitle})](command:${EXTENSION_NAME}.finishTour?${argsContent} "Start next tour")`;
       } else {
-        content += `${prefix}[Finish Tour](command:codetour.finishTour "Finish the tour")`;
+        content += `${prefix}[Finish Tour](command:${EXTENSION_NAME}.finishTour "Finish the tour")`;
       }
     }
   }
@@ -402,7 +404,7 @@ async function renderCurrentStep() {
 
       try {
         console.log("Executing command", name, JSON.stringify(args));
-        await commands.executeCommand(name, ...args);
+        await commands.executeCommand(toExtensionCommand(name), ...args);
       } catch (e) {
         window.showErrorMessage(`An error has occurred: ${e}`);
       }

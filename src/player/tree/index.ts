@@ -80,7 +80,7 @@ class CodeTourTreeProvider implements TreeDataProvider<TreeItem>, Disposable {
         if (store.isRecording && store.activeTour?.tour.id == element.tour.id) {
           item = new TreeItem("Add tour step...");
           item.command = {
-            command: "codetour.addContentStep",
+            command: `${EXTENSION_NAME}.addContentStep`,
             title: "Add tour step..."
           };
         } else {

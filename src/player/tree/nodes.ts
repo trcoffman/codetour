@@ -39,7 +39,7 @@ export class CodeTourNode extends TreeItem {
     this.tooltip = tour.description;
     this.description = `${tour.steps.length} steps`;
 
-    const contextValues = ["codetour.tour"];
+    const contextValues = [`${EXTENSION_NAME}.tour`];
 
     if (tour.isPrimary) {
       contextValues.push("primary");
@@ -139,7 +139,7 @@ export class CodeTourStepNode extends TreeItem {
       this.iconPath = ThemeIcon.File;
     }
 
-    const contextValues = ["codetour.tourStep"];
+    const contextValues = [`${EXTENSION_NAME}.tourStep`];
     if (stepNumber > 0) {
       contextValues.push("hasPrevious");
     }

@@ -1,0 +1,41 @@
+{
+  "name": "@tylercoffman/codetour-plus",
+  "version": "0.0.60",
+  "description": "Command-line tool and agent skill for creating, editing, checking and previewing CodeTour .tour files. Companion to the CodeTour+ editor extensions.",
+  "author": {
+    "name": "Tyler Coffman"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trcoffman/codetour"
+  },
+  "bugs": {
+    "url": "https://github.com/trcoffman/codetour/issues"
+  },
+  "homepage": "https://github.com/trcoffman/codetour#command-line-agents-and-ci",
+  "keywords": [
+    "codetour",
+    "code tour",
+    "walkthrough",
+    "onboarding",
+    "cli",
+    "agent-skill"
+  ],
+  "bin": {
+    "codetour": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "LICENSE.txt",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "prepack": "node prepack.js"
+  }
+}

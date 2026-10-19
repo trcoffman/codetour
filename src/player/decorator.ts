@@ -3,7 +3,7 @@
 
 import { reaction } from "mobx";
 import * as vscode from "vscode";
-import { FS_SCHEME_CONTENT, ICON_URL } from "../constants";
+import { EXTENSION_NAME, FS_SCHEME_CONTENT, ICON_URL } from "../constants";
 import { CodeTourStepTuple, store } from "../store";
 import { getStepFileUri, getWorkspaceUri } from "../utils";
 
@@ -142,12 +142,12 @@ export async function registerDecorators() {
   );
 
   store.showMarkers = vscode.workspace
-    .getConfiguration("codetour")
+    .getConfiguration(EXTENSION_NAME)
     .get("showMarkers", true);
 
   vscode.commands.executeCommand(
     "setContext",
-    "codetour:showingMarkers",
+    `${EXTENSION_NAME}:showingMarkers`,
     store.showMarkers
   );
 }

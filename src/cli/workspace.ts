@@ -76,11 +76,13 @@ function listFiles(directory: string, files: string[]) {
 export class Workspace {
   constructor(public readonly roots: string[]) {}
 
-  /** `codetour.customTourDirectory` from the folder's .vscode/settings.json. */
+  /** `codetourPlus.customTourDirectory` (or the original extension's `codetour.customTourDirectory`) from the folder's .vscode/settings.json. */
   customTourDirectory(root: string): string | undefined {
     const text = readText(path.join(root, ".vscode", "settings.json"));
     const settings = text ? jsonc.parse(text) : undefined;
-    const value = settings && settings["codetour.customTourDirectory"];
+    const value =
+      settings &&
+      (settings["codetourPlus.customTourDirectory"] ?? settings["codetour.customTourDirectory"]);
     return typeof value === "string" && value ? value : undefined;
   }
 

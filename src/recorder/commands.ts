@@ -153,7 +153,7 @@ export function registerRecorderCommands() {
     let ref;
 
     const mode = vscode.workspace
-      .getConfiguration("codetour")
+      .getConfiguration(EXTENSION_NAME)
       .get("recordMode", "lineNumber");
 
     if (mode === "lineNumber") {
@@ -165,7 +165,7 @@ export function registerRecorderCommands() {
     startCodeTour(tour, 0, workspaceRoot, true);
 
     vscode.window.showInformationMessage(
-      "CodeTour recording started! Begin creating steps by opening a file, clicking the + button to the left of a line of code, and then adding the appropriate comments."
+      "CodeTour+ recording started! Begin creating steps by opening a file, clicking the + button to the left of a line of code, and then adding the appropriate comments."
     );
   }
 
@@ -374,7 +374,7 @@ export function registerRecorderCommands() {
       };
 
       const mode = vscode.workspace
-        .getConfiguration("codetour")
+        .getConfiguration(EXTENSION_NAME)
         .get("recordMode");
 
       if (mode === "pattern") {
@@ -445,7 +445,7 @@ export function registerRecorderCommands() {
       store.isEditing = true;
       await vscode.commands.executeCommand(
         "setContext",
-        "codetour:recording",
+        `${EXTENSION_NAME}:recording`,
         true
       );
       await vscode.commands.executeCommand("setContext", EDITING_KEY, true);
@@ -478,7 +478,7 @@ export function registerRecorderCommands() {
       vscode.commands.executeCommand("setContext", EDITING_KEY, false);
       await vscode.commands.executeCommand(
         "setContext",
-        "codetour:recording",
+        `${EXTENSION_NAME}:recording`,
         false
       );
 

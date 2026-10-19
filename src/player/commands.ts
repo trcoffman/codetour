@@ -19,6 +19,8 @@ import { progress } from "../store/storage";
 import { readUriContents } from "../utils";
 import { CodeTourNode } from "./tree/nodes";
 
+const TERMINAL_NAME = "CodeTour+";
+
 let terminal: vscode.Terminal | null;
 export function registerPlayerCommands() {
   // This is a "private" command that's used exclusively
@@ -88,9 +90,9 @@ export function registerPlayerCommands() {
     `${EXTENSION_NAME}.sendTextToTerminal`,
     async (text: string) => {
       if (!terminal) {
-        terminal = vscode.window.createTerminal("CodeTour");
+        terminal = vscode.window.createTerminal(TERMINAL_NAME);
         vscode.window.onDidCloseTerminal(term => {
-          if (term.name === "CodeTour") {
+          if (term.name === TERMINAL_NAME) {
             terminal = null;
           }
         });
@@ -269,12 +271,12 @@ export function registerPlayerCommands() {
     store.showMarkers = showMarkers;
 
     vscode.workspace
-      .getConfiguration("codetour")
+      .getConfiguration(EXTENSION_NAME)
       .update("showMarkers", showMarkers, vscode.ConfigurationTarget.Global);
 
     vscode.commands.executeCommand(
       "setContext",
-      "codetour:showingMarkers",
+      `${EXTENSION_NAME}:showingMarkers`,
       showMarkers
     );
   }

@@ -4,6 +4,17 @@
 - Automatically set the "pattern" record mode when you create a new tour, and select `None` for the git ref
 - Added support for opening a `*.tour` file in the VS Code notebook editor (Insiders only)
 
+## v0.0.60 - first CodeTour+ release
+
+CodeTour+ is a maintained fork of Microsoft's CodeTour (last released as v0.0.59), published as `TylerCoffman.codetour-plus`.
+
+- Renamed to **CodeTour+**. Commands, settings, context keys and the tree view now use the `codetourPlus.*` prefix, so it can be installed next to the original extension. Settings aren't migrated; see the README for the names to copy over
+- Existing `*.tour` files keep working: `codetour.*` command links and step `commands` are mapped to the `codetourPlus.*` commands when a tour is played
+- New `codetour` command-line tool (`list`, `show`, `validate`, `fmt`, `new`, `add`, `edit`, `move`, `rm`, `delete`, `fix`) that creates, edits, checks and re-anchors tours without an editor, published as `@tylercoffman/codetour-plus`
+- New `codetour` agent skill (`npx skills add trcoffman/codetour`) for writing and maintaining tours with coding agents
+- New Neovim plugin that reads and writes the same `*.tour` files
+- New icon
+
 ## v0.0.59 (03/24/2023)
 
 - A tour step can now run multiple commands

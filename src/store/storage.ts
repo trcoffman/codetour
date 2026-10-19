@@ -4,6 +4,7 @@
 import { observable } from "mobx";
 import { commands, ExtensionContext, Uri, workspace } from "vscode";
 import { CodeTour, store } from ".";
+import { EXTENSION_NAME } from "../constants";
 
 const CODETOUR_PROGRESS_KEY = "codetour:progress";
 
@@ -36,7 +37,7 @@ export function initializeStorage(context: ExtensionContext) {
         ]);
       }
 
-      commands.executeCommand("setContext", "codetour:hasProgress", true);
+      commands.executeCommand("setContext", `${EXTENSION_NAME}:hasProgress`, true);
       return context.globalState.update(CODETOUR_PROGRESS_KEY, store.progress);
     },
     isComplete(tour: CodeTour, stepNumber?: number): boolean {
@@ -48,7 +49,7 @@ export function initializeStorage(context: ExtensionContext) {
       }
     },
     async reset(tour?: CodeTour) {
-      commands.executeCommand("setContext", "codetour:hasProgress", false);
+      commands.executeCommand("setContext", `${EXTENSION_NAME}:hasProgress`, false);
 
       store.progress = tour
         ? store.progress.filter(tourProgress => tourProgress[0] !== tour.id)
@@ -65,6 +66,6 @@ export function initializeStorage(context: ExtensionContext) {
   );
 
   if (workspaceHasProgress) {
-    commands.executeCommand("setContext", "codetour:hasProgress", true);
+    commands.executeCommand("setContext", `${EXTENSION_NAME}:hasProgress`, true);
   }
 }
