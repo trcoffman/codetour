@@ -114,11 +114,30 @@ M.builtin = {
   end,
 }
 
+-- Built-in commands that run shell commands, and what they would run. Tours
+-- must be trusted (see `codetour.trust`) before these run; commands you map
+-- yourself with the `commands` option are your own code and aren't checked.
+local SHELL_COMMANDS = {
+  ["codetour.sendTextToTerminal"] = function(text)
+    return tostring(text)
+  end,
+  ["workbench.action.tasks.build"] = function()
+    return (":make (makeprg = %s)"):format(vim.o.makeprg)
+  end,
+}
+
 --- Executes a command by ID.
 function M.execute(name, args)
   local handler = config.get().commands[name]
   if handler == nil then
     handler = M.builtin[name]
+    local describe = SHELL_COMMANDS[name]
+    if describe then
+      local tour = state.active and state.active.tour
+      if not require("codetour.trust").allow(tour, describe(unpack(args or {}))) then
+        return
+      end
+    end
   end
   if type(handler) == "string" then
     local ok, err = pcall(vim.cmd, handler)

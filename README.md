@@ -43,6 +43,8 @@ Requires Neovim 0.10+. With [lazy.nvim](https://github.com/folke/lazy.nvim):
 | `codetour.*` settings | `setup()` options; a workspace's `.vscode/settings.json` is honored too |
 | Extension API + `onDidStartTour` / `onDidEndTour` | `require("codetour")` API + `User CodeTourStepChanged` / `CodeTourEnded` autocommands |
 
+Neovim has no workspace trust, so before a tour runs shell text (`>>` lines, `codetour.sendTextToTerminal`) or `:make`, the plugin asks first and can remember a tour until its file changes (`trust = "prompt"`, the default; see [`:help codetour-trust`](doc/codetour.txt)).
+
 Tours can target a single editor with `"when": "isNeovim"` (or `"!isNeovim"`). See [`:help codetour`](doc/codetour.txt) for the full documentation, and run `make test` to run the plugin's test suite.
 
 ## Command line, agents and CI

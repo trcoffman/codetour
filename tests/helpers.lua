@@ -92,6 +92,7 @@ end
 function M.setup(opts)
   require("codetour").setup(vim.tbl_deep_extend("force", {
     state_file = vim.fn.tempname() .. "/state.json",
+    trust_file = vim.fn.tempname() .. "/trusted.json",
     prompt_for_workspace_tours = false,
   }, opts or {}))
   require("codetour.discovery").discover()

@@ -22,6 +22,15 @@ M.defaults = {
   -- Options passed to `setup()` take precedence over workspace settings.
   vscode_settings = true,
 
+  -- Whether tours may run shell commands (`>>` lines, `codetour.sendTextToTerminal`
+  -- and `workbench.action.tasks.build`): "prompt" asks first and can remember a
+  -- tour until its file changes, "always" runs them, "never" refuses. Not read
+  -- from workspace settings, so a repository can't turn the prompt off.
+  trust = "prompt",
+
+  -- Where trusted tours are remembered (a hash of each tour file).
+  trust_file = vim.fn.stdpath("data") .. "/codetour/trusted.json",
+
   -- Workspace folders to discover tours in (a list or a function returning
   -- one). Defaults to the current working directory.
   roots = nil,

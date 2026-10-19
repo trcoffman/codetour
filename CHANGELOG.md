@@ -12,7 +12,7 @@ CodeTour+ is a maintained fork of Microsoft's CodeTour (last released as v0.0.59
 - Existing `*.tour` files keep working: `codetour.*` command links and step `commands` are mapped to the `codetourPlus.*` commands when a tour is played
 - New `codetour` command-line tool (`list`, `show`, `validate`, `fmt`, `new`, `add`, `edit`, `move`, `rm`, `delete`, `fix`) that creates, edits, checks and re-anchors tours without an editor, published as `@tylercoffman/codetour-plus`
 - New `codetour` agent skill (`npx skills add trcoffman/codetour`) for writing and maintaining tours with coding agents
-- New Neovim plugin that reads and writes the same `*.tour` files
+- New Neovim plugin that reads and writes the same `*.tour` files. It asks before a tour runs shell commands, and remembers tours you trust until their file changes (`trust = "always"` or `"never"` skips the prompt)
 - New icon
 
 ## v0.0.59 (03/24/2023)

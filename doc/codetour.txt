@@ -363,6 +363,30 @@ others with the `commands` option: >lua
       ["myExtension.doThing"] = function(arg) ... end,
     }
 <
+                                                              *codetour-trust*
+Some commands run shell commands: `>> text` lines, `codetour.sendTextToTerminal`
+and `workbench.action.tasks.build` (|:make|). A tour from a stranger is as
+dangerous as any script, and `step.commands` run as soon as the step is shown,
+so before running one of these the plugin asks:
+
+  Alpha wants to run:
+
+  npm test
+
+  [R]un once  [A]lways trust this tour  [C]ancel
+
+"Always trust" is remembered by a hash of the tour file (in `trust_file`), so
+editing the tour asks again. Tours that aren't a local file (opened from a URL,
+or not saved yet) are asked about every time. Navigation commands
+(`codetour.nextTourStep`, ...) never ask. Commands you map with the `commands`
+option are your own code and aren't checked.
+
+Set `trust = "never"` to refuse all of them, or `trust = "always"` to run them
+without asking (what you want if you only open tours you wrote). The option
+isn't read from `.vscode/settings.json`, so a repository can't turn the prompt
+off. Forget a tour with `require("codetour.trust").revoke(tour)`, or every tour
+by deleting `trust_file`.
+
 ==============================================================================
 11. CONFIGURATION                                     *codetour-configuration*
 
@@ -378,6 +402,11 @@ Defaults: >lua
       custom_tour_directory = nil,
       -- Also read `codetour.*` settings from .vscode/settings.json.
       vscode_settings = true,
+      -- Run shell commands from tours? "prompt", "always" or "never"
+      -- (see |codetour-trust|).
+      trust = "prompt",
+      -- Where trusted tours are remembered.
+      trust_file = vim.fn.stdpath("data") .. "/codetour/trusted.json",
       -- Workspace folders: a list or a function (default: the cwd).
       roots = nil,
       -- Where progress is stored.
