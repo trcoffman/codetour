@@ -23,3 +23,6 @@ tsconfig.test.json
 bin/**
 skills/**
 dist/cli.js*
+.jj/**
+tmp/**
+cli/**
