@@ -36,6 +36,9 @@ export interface CodeTourStep {
   markerTitle?: string;
 }
 
+/** A tour's `ref` meaning "the latest commit that modified the tour file". */
+export const LAST_EDIT_REF = "last-edit";
+
 export interface CodeTour {
   id: string;
   title: string;

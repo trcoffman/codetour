@@ -43,7 +43,9 @@ Reading tours
 Writing tours
   new <title> [--description TEXT] [--file PATH] [--ref REF] [--primary]
       [--next TITLE] [--when EXPR]
-                               Create a tour (in .tours/ by default)
+                               Create a tour (in .tours/ by default); --ref pins
+                               it to a branch, tag or commit, or to "last-edit",
+                               the latest commit that modified the tour file
   add <tour> (--at LOCATION | --dir DIR | --content) [--title TEXT]
       [--description TEXT] [--after N | --before N] [--pattern] [--icon ICON]
                                Add a step (at the end by default)

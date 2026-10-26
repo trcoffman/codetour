@@ -151,9 +151,10 @@ end
 --- Reads the text of a step's file, honoring the tour's git ref.
 function M.read_step_file(tour, step, root)
   local path = util.join(root or util.tour_root(tour), step.file)
-  local use_ref, repo = require("codetour.git").should_use_ref(path, tour.ref)
+  local ref = require("codetour.git").tour_ref(tour)
+  local use_ref, repo = require("codetour.git").should_use_ref(path, ref)
   if use_ref then
-    local content = require("codetour.git").show(path, tour.ref, repo)
+    local content = require("codetour.git").show(path, ref, repo)
     if content then
       return content
     end

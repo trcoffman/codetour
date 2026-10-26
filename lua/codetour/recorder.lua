@@ -80,6 +80,11 @@ function M.prompt_for_ref(root)
       ref = repo.commit,
     }
   end
+  items[#items + 1] = {
+    label = "Last commit that modified the tour",
+    detail = "Keep the tour associated with the most recent commit that modified the tour",
+    ref = "last-edit",
+  }
   for _, tag in ipairs(git.tags(root)) do
     items[#items + 1] = { label = "Tag: " .. tag, detail = "Keep the tour associated with a specific tag", ref = tag }
   end

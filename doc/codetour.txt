@@ -138,7 +138,7 @@ The statusline component `require("codetour").status()` returns e.g.
 workspace; when that recording ends you're offered to export it
 (|codetour-export|). In a git repository you're asked which ref the tour is
 pinned to (unless `record_mode` is "pattern"): none, the current branch, the
-current commit, or a tag.
+current commit, the last commit that modified the tour, or a tag.
 
 While recording:
 
@@ -301,6 +301,10 @@ doesn't produce noise in diffs. A tour has these properties:
   `steps`        Required. The list of steps.
   `ref`          Git branch, tag or commit the tour is pinned to. Files are
                  shown as of that ref (read-only) unless it's checked out.
+                 "last-edit" means the latest commit that modified the tour
+                 file: the tour stays attached to the commit that added it,
+                 even when history is rewritten. The working tree is used
+                 while the tour file has uncommitted changes.
   `isPrimary`    The tour to start by default.
   `nextTour`     Title of the tour to continue with.
   `stepMarker`   Marker used to locate steps in comments (see below).

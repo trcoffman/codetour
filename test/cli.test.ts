@@ -364,6 +364,65 @@ describe("codetour", () => {
     });
   });
 
+  describe("last-edit tours", () => {
+    const shown = () => codetour(["show", "server", "--context", "1"]).stdout;
+
+    beforeEach(() => {
+      git("init", "-q", "-b", "main");
+      git("add", "-A");
+      git("commit", "-q", "-m", "base");
+      codetour(["new", "Server", "--ref", "last-edit"]);
+      codetour(["add", "server", "--at", "src/server.js:3", "--title", "Handler", "--description", "a"]);
+    });
+
+    it("uses the working tree until the tour is committed", () => {
+      write("src/server.js", "// moved\n" + SERVER);
+      assert.doesNotMatch(shown(), /> {5}3 │ function handle/);
+      assert.strictEqual(codetour(["validate"]).code, 0);
+    });
+
+    it("reads files as of the commit that last modified the tour", () => {
+      git("add", "-A");
+      git("commit", "-q", "-m", "tour");
+      write("src/server.js", "// moved\n" + SERVER);
+      git("commit", "-q", "-am", "move code");
+      assert.match(shown(), /> {5}3 │ function handle/);
+      assert.match(codetour(["validate"]).stdout, /^0 errors/);
+      assert.strictEqual(codetour(["fix"]).code, 0);
+      assert.match(codetour(["fix"]).stdout, /pinned to the commit that last modified it/);
+    });
+
+    it("uses the working tree again when the tour has uncommitted changes", () => {
+      git("add", "-A");
+      git("commit", "-q", "-m", "tour");
+      write("src/server.js", "// moved\n" + SERVER);
+      git("commit", "-q", "-am", "move code");
+      codetour(["edit", "server", "1", "--description", "b"]);
+      assert.doesNotMatch(shown(), /> {5}3 │ function handle/);
+    });
+
+    it("follows the tour when history is rewritten", () => {
+      git("checkout", "-q", "-b", "feature");
+      git("add", "-A");
+      git("commit", "-q", "-m", "tour");
+      write("src/server.js", "// moved\n" + SERVER);
+      git("commit", "-q", "-am", "move code");
+      git("checkout", "-q", "main");
+      write("README.md", "hello\n");
+      git("add", "-A");
+      git("commit", "-q", "-m", "unrelated");
+      const before = git("rev-parse", "feature");
+      git("checkout", "-q", "feature");
+      git("rebase", "-q", "main");
+      assert.notStrictEqual(git("rev-parse", "HEAD"), before);
+      assert.match(shown(), /> {5}3 │ function handle/);
+    });
+
+    it("isn't flagged as a missing ref", () => {
+      assert.doesNotMatch(codetour(["validate"]).stdout, /doesn't exist/);
+    });
+  });
+
   it("runs as a program, reading descriptions from stdin", () => {
     codetour(["new", "Server"]);
     const cli = path.join(__dirname, "..", "src", "cli", "index.js");

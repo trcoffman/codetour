@@ -18,6 +18,7 @@ import {
   startCodeTour
 } from "../store/actions";
 import { getLinePattern } from "../core/edit";
+import { LAST_EDIT_REF } from "../core/types";
 import {
   DEFAULT_TOUR_DIRECTORY,
   formatTour,
@@ -860,6 +861,13 @@ export function registerRecorderCommands() {
         label: "$(git-commit) Current commit",
         description: "Keep the tour associated with a specific commit",
         ref: repository.state.HEAD ? repository.state.HEAD.commit! : "",
+        alwaysShow: true
+      },
+      {
+        label: "$(git-commit) Last commit that modified the tour",
+        description:
+          "Keep the tour associated with the most recent commit that modified the tour",
+        ref: LAST_EDIT_REF,
         alwaysShow: true
       }
     ];

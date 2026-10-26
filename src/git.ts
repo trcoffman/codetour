@@ -16,13 +16,30 @@ export interface Ref {
   readonly remote?: string;
 }
 
+export interface Change {
+  readonly uri: vscode.Uri;
+}
+
 export interface RepositoryState {
   readonly HEAD: Ref | undefined;
   readonly refs: Ref[];
+  readonly indexChanges: Change[];
+  readonly workingTreeChanges: Change[];
+}
+
+export interface LogOptions {
+  /** Max number of log entries to retrieve. If not specified, the default is 32. */
+  readonly maxEntries?: number;
+  readonly path?: string;
+}
+
+export interface Commit {
+  readonly hash: string;
 }
 
 export interface Repository {
   readonly state: RepositoryState;
+  log(options?: LogOptions): Promise<Commit[]>;
 }
 
 interface GitAPI {

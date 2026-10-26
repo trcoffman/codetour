@@ -52,6 +52,91 @@ describe("tours pinned to a git ref", function()
     end
   end)
 
+  describe("with ref = last-edit", function()
+    local tour_path
+
+    local function start_last_edit()
+      local tour = require("codetour.tourfile").parse(
+        helpers.tour({ title = "Pinned", ref = "last-edit", steps = { { file = "src/a.js", line = 1, description = "" } } }),
+        tour_path
+      )
+      actions.start_tour(tour)
+      return player.view().buf
+    end
+
+    before_each(function()
+      tour_path = root .. "/.tours/pinned.tour"
+      helpers.write(
+        tour_path,
+        helpers.tour({ title = "Pinned", ref = "last-edit", steps = { { file = "src/a.js", line = 1, description = "" } } })
+      )
+    end)
+
+    local function commit_tour_then_change_code()
+      helpers.git(root, "add", ".")
+      helpers.git(root, "commit", "-q", "-m", "tour")
+      helpers.write(root .. "/src/a.js", "version 3\n")
+      helpers.git(root, "commit", "-q", "-am", "third")
+    end
+
+    it("shows the working tree until the tour is committed", function()
+      local buf = start_last_edit()
+      assert.equals(root .. "/src/a.js", vim.api.nvim_buf_get_name(buf))
+    end)
+
+    it("shows files as of the commit that last modified the tour", function()
+      commit_tour_then_change_code()
+      local buf = start_last_edit()
+      assert.same({ "version 2" }, helpers.lines(buf))
+      assert.is_false(vim.bo[buf].modifiable)
+    end)
+
+    it("uses the working tree when the tour has uncommitted changes", function()
+      commit_tour_then_change_code()
+      helpers.write(tour_path, helpers.read(tour_path) .. "\n")
+      local buf = start_last_edit()
+      assert.equals(root .. "/src/a.js", vim.api.nvim_buf_get_name(buf))
+    end)
+
+    it("uses the working tree when the tour is the latest commit", function()
+      helpers.git(root, "add", ".")
+      helpers.git(root, "commit", "-q", "-m", "tour")
+      local buf = start_last_edit()
+      assert.equals(root .. "/src/a.js", vim.api.nvim_buf_get_name(buf))
+    end)
+
+    it("follows the tour when history is rewritten", function()
+      commit_tour_then_change_code()
+      local before = helpers.git(root, "rev-parse", "HEAD~1")
+      helpers.git(
+        root,
+        "rebase",
+        "-q",
+        "--exec",
+        "git -c user.name=Tests -c user.email=tests@example.com -c commit.gpgsign=false commit -q --amend -m rewritten",
+        "HEAD~2"
+      )
+      assert.not_equals(before, helpers.git(root, "rev-parse", "HEAD~1"))
+      local buf = start_last_edit()
+      assert.same({ "version 2" }, helpers.lines(buf))
+    end)
+
+    it("exports the pinned version", function()
+      commit_tour_then_change_code()
+      local tour = require("codetour.tourfile").parse(helpers.read(tour_path), tour_path)
+      local exported = vim.json.decode(require("codetour.tourfile").export(tour))
+      assert.equals("version 2\n", exported.steps[1].contents)
+    end)
+
+    it("shows the working tree for tours without a file", function()
+      local tour = require("codetour.tourfile").parse(
+        helpers.tour({ title = "Remote", ref = "last-edit", steps = {} }),
+        "https://example.com/pinned.tour"
+      )
+      assert.is_nil(require("codetour.git").tour_ref(tour))
+    end)
+  end)
+
   it("embeds the pinned version when exporting", function()
     local tour = require("codetour.tourfile").parse(
       helpers.tour({ title = "Pinned", ref = first, steps = { { file = "src/a.js", line = 1, description = "" } } }),
@@ -72,6 +157,7 @@ describe("tours pinned to a git ref", function()
       "None — Allow the tour to apply to all versions of this repository",
       "Current branch (main) — Allow the tour to apply to all versions of this branch",
       "Current commit — Keep the tour associated with a specific commit",
+      "Last commit that modified the tour — Keep the tour associated with the most recent commit that modified the tour",
       "Tag: v1 — Keep the tour associated with a specific tag",
     }, ui.items[1])
     local saved = helpers.read(root .. "/.tours/recorded.tour")

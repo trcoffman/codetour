@@ -15,9 +15,9 @@ import {
   parseTour,
   TourContext
 } from "../core/tourFile";
-import { CodeTour } from "../core/types";
+import { CodeTour, LAST_EDIT_REF } from "../core/types";
 import { ValidationHost } from "../core/validate";
-import { resolveRef, shouldUseRef, showFile } from "./git";
+import { resolveRef, shouldUseRef, showFile, tourRef } from "./git";
 
 export interface LoadedTour {
   tour: CodeTour;
@@ -141,9 +141,12 @@ export class Workspace {
   host(tour: CodeTour): ValidationHost {
     const root = this.rootOf(tour);
     const useRef = new Map<string, boolean>();
+    // A `last-edit` tour is pinned to a commit that's found once per run.
+    const lastEdit = tour.ref === LAST_EDIT_REF ? { ref: tourRef(tour) } : undefined;
     return {
       context: TOUR_CONTEXT,
-      readFile: (file, ref) => {
+      readFile: (file, given) => {
+        const ref = lastEdit ? lastEdit.ref : given;
         if (ref) {
           if (!useRef.has(ref)) {
             useRef.set(ref, shouldUseRef(root, ref));
@@ -157,7 +160,8 @@ export class Workspace {
       },
       isDirectory: file => isDirectory(path.resolve(root, file)),
       exists: file => fs.existsSync(file),
-      refExists: ref => (resolveRef(root, "HEAD") === undefined ? undefined : resolveRef(root, ref) !== undefined)
+      refExists: ref =>
+        ref === LAST_EDIT_REF || resolveRef(root, "HEAD") === undefined ? undefined : resolveRef(root, ref) !== undefined
     };
   }
 }

@@ -161,6 +161,10 @@ description, since the code may mean something else now.
 
 A tour needs to be committed once before `fix` has a base to compare with
 (with jj, `jj commit` or `jj new`). Tours pinned to a git `ref` never drift.
+To ship a tour in the same commit as the code it explains, create it with
+`--ref last-edit`: it's pinned to the latest commit that modified the tour
+file (so it survives rebases), and reads the working tree while it has
+uncommitted changes.
 
 ## Finishing up
 

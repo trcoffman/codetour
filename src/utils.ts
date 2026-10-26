@@ -13,7 +13,8 @@ import {
   isMarkerStep,
   isMarkerTour
 } from "./core/labels";
-import { api } from "./git";
+import { LAST_EDIT_REF } from "./core/types";
+import { api, Repository } from "./git";
 import { CodeTour, CodeTourStep, store } from "./store";
 
 export { getStepLabel, getTourTitle } from "./core/labels";
@@ -42,11 +43,50 @@ export function getFileUri(file: string, workspaceRoot?: Uri) {
   //return appendUriPath(workspaceRoot, file);
 }
 
+// Finding the latest commit that modified a tour runs `git log`, so the answer
+// is kept until HEAD moves.
+const lastEditCommits = new Map<string, { head: string; commit?: string }>();
+
+/**
+ * The commit a `last-edit` tour is pinned to: the latest one that modified
+ * the tour file. Undefined (the working tree is used) when the tour isn't a
+ * file in this repository, or the file has uncommitted changes, so that a
+ * tour being edited isn't shown against older code.
+ */
+async function getLastEditCommit(
+  tour: CodeTour,
+  repo: Repository
+): Promise<string | undefined> {
+  const tourUri = Uri.parse(tour.id);
+  const head = repo.state.HEAD?.commit;
+  if (tourUri.scheme !== "file" || !head) {
+    return;
+  }
+
+  const changed = [
+    ...repo.state.indexChanges,
+    ...repo.state.workingTreeChanges
+  ].some(change => change.uri.fsPath === tourUri.fsPath);
+  if (changed) {
+    return;
+  }
+
+  const cached = lastEditCommits.get(tour.id);
+  if (cached?.head === head) {
+    return cached.commit;
+  }
+
+  const [latest] = await repo.log({ maxEntries: 1, path: tourUri.fsPath });
+  lastEditCommits.set(tour.id, { head, commit: latest?.hash });
+  return latest?.hash;
+}
+
 export async function getStepFileUri(
   step: CodeTourStep,
   workspaceRoot?: Uri,
-  ref?: string
+  tour?: CodeTour
 ): Promise<Uri> {
+  let ref = tour?.ref;
   let uri;
   if (step.contents) {
     uri = Uri.parse(`${FS_SCHEME}://current/${step.file}`);
@@ -55,10 +95,15 @@ export async function getStepFileUri(
       ? Uri.parse(step.uri)
       : getFileUri(step.file!, workspaceRoot);
 
-    if (api && ref && ref !== "HEAD") {
+    if (api && tour && ref && ref !== "HEAD") {
       const repo = api.getRepository(uri);
 
+      if (repo && ref === LAST_EDIT_REF) {
+        ref = await getLastEditCommit(tour, repo);
+      }
+
       if (
+        ref &&
         repo &&
         repo.state.HEAD &&
         repo.state.HEAD.name !== ref && // The tour refs the user's current branch
@@ -127,7 +172,7 @@ async function updateMarkerTitleForStep(tour: CodeTour, stepNumber: number) {
   const uri = await getStepFileUri(
     tour.steps[stepNumber],
     getWorkspaceUri(tour),
-    tour.ref
+    tour
   );
 
   const document = await workspace.openTextDocument(uri);

@@ -1,5 +1,6 @@
 ## Upcoming
 
+- New `last-edit` git ref (**Last commit that modified the tour** when recording): the tour is pinned to the most recent commit that modified the tour file, so a code change and the tour that explains it can be one commit, and the tour stays attached when history is rewritten by a rebase. Available in the VS Code extension, the `codetour` CLI (`--ref last-edit`) and the Neovim plugin. Based on [microsoft/codetour#252](https://github.com/microsoft/codetour/pull/252)
 - Automatically updating a tour file as the associated code changes
 - Automatically set the "pattern" record mode when you create a new tour, and select `None` for the git ref
 - Added support for opening a `*.tour` file in the VS Code notebook editor (Insiders only)

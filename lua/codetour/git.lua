@@ -52,6 +52,32 @@ function M.resolve(path, ref)
   return git(dir_of(path), { "rev-parse", "--verify", "--quiet", ref .. "^{commit}" })
 end
 
+--- The ref a `last-edit` tour is pinned to: the latest commit that modified
+--- the tour file. Nil (the working tree is used) when the file has uncommitted
+--- changes, isn't tracked yet or isn't in a repository.
+function M.last_edit(tour_file)
+  local cwd, file = vim.fs.dirname(tour_file), vim.fs.basename(tour_file)
+  local status = git(cwd, { "status", "--porcelain", "--", file })
+  if status == nil or status ~= "" then
+    return nil
+  end
+  local commit = git(cwd, { "log", "-1", "--format=%H", "--", file })
+  return commit ~= "" and commit or nil
+end
+
+--- The git ref the tour's files are read at, or nil for the working tree.
+---@param tour { id?: string, ref?: string }
+function M.tour_ref(tour)
+  if tour.ref == "last-edit" then
+    local id = tour.id
+    if type(id) ~= "string" or require("codetour.util").is_url(id) or vim.uv.fs_stat(id) == nil then
+      return nil
+    end
+    return M.last_edit(id)
+  end
+  return tour.ref
+end
+
 --- Returns whether a tour pinned to `ref` should show `path` from git instead
 --- of the working tree. Mirrors the checks in VS Code's getStepFileUri.
 ---@return boolean use_ref

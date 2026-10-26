@@ -14,7 +14,7 @@
     },
     "ref": {
       "type": "string",
-      "description": "Indicates the git ref (branch/commit/tag) that this tour associate with."
+      "description": "Indicates the git ref (branch/commit/tag) that this tour associate with. Use \"last-edit\" for the most recent commit that modified the tour file."
     },
     "isPrimary": {
       "type": "boolean",

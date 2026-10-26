@@ -13,7 +13,7 @@ import * as path from "path";
 import { resolveStepLine, splitLines } from "../core/anchor";
 import { findLine, mapLine, parseHunks } from "../core/drift";
 import { parseTour } from "../core/tourFile";
-import { CodeTour, CodeTourStep } from "../core/types";
+import { CodeTour, CodeTourStep, LAST_EDIT_REF } from "../core/types";
 import { git, repositoryRoot } from "./git";
 import { readText } from "./workspace";
 
@@ -77,7 +77,13 @@ function findRenames(repo: string, base: string) {
 
 export function planFix(tour: CodeTour, root: string, { base: givenBase }: { base?: string } = {}): FixPlan {
   if (tour.ref && tour.ref !== "HEAD") {
-    return { skipped: `it's pinned to ${JSON.stringify(tour.ref)}, so it doesn't drift`, steps: [] };
+    return {
+      skipped:
+        tour.ref === LAST_EDIT_REF
+          ? "it's pinned to the commit that last modified it, so it doesn't drift"
+          : `it's pinned to ${JSON.stringify(tour.ref)}, so it doesn't drift`,
+      steps: []
+    };
   }
   const repo = repositoryRoot(root);
   if (!repo) {

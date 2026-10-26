@@ -174,12 +174,13 @@ function M.resolve_target(tour, step, root)
     end
 
     local git = require("codetour.git")
-    local use_ref, repo = git.should_use_ref(path, tour.ref)
+    local ref = git.tour_ref(tour)
+    local use_ref, repo = git.should_use_ref(path, ref)
     if use_ref then
-      local content, err = git.show(path, tour.ref, repo)
+      local content, err = git.show(path, ref, repo)
       if content then
         local relative = util.relative(repo.root, util.realpath(path))
-        local buf = M.scratch_buffer(("codetour://%s/%s"):format(tour.ref, relative), {
+        local buf = M.scratch_buffer(("codetour://%s/%s"):format(ref, relative), {
           lines = (split_content(content)),
         })
         local ft = detect_filetype(path, buf)
@@ -188,7 +189,7 @@ function M.resolve_target(tour, step, root)
         end
         return { buf = buf, kind = "ref", path = path }
       end
-      util.warn(("Unable to show %s at %s (%s); showing the working tree version."):format(step.file, tour.ref, err))
+      util.warn(("Unable to show %s at %s (%s); showing the working tree version."):format(step.file, ref, err))
     end
 
     local buf = vim.fn.bufadd(path)
