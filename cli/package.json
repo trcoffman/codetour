@@ -1,6 +1,6 @@
 {
   "name": "@tylercoffman/codetour-plus",
-  "version": "0.0.60",
+  "version": "0.0.61",
   "description": "Command-line tool and agent skill for creating, editing, checking and previewing CodeTour .tour files. Companion to the CodeTour+ editor extensions.",
   "author": {
     "name": "Tyler Coffman"

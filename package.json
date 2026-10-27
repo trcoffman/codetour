@@ -3,7 +3,7 @@
   "displayName": "CodeTour+",
   "description": "Record and play back guided tours of your codebase in VS Code. A maintained fork of Microsoft's CodeTour that reads and writes the same .tour files. Also ships the codetour CLI.",
   "publisher": "TylerCoffman",
-  "version": "0.0.60",
+  "version": "0.0.61",
   "author": {
     "name": "Tyler Coffman"
   },
