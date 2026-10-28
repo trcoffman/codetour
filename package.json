@@ -660,7 +660,7 @@
   },
   "dependencies": {
     "@types/jexl": "^2.2.0",
-    "axios": "^0.21.4",
+    "axios": "^1.21.0",
     "jexl": "^2.3.0",
     "jsonc-parser": "^3.3.1",
     "mobx": "^5.14.2",

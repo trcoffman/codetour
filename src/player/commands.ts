@@ -21,6 +21,9 @@ import { CodeTourNode } from "./tree/nodes";
 
 const TERMINAL_NAME = "CodeTour+";
 
+// Tours are small; refuse huge responses from a URL instead of loading them.
+const MAX_TOUR_BYTES = 5 * 1024 * 1024;
+
 let terminal: vscode.Terminal | null;
 export function registerPlayerCommands() {
   // This is a "private" command that's used exclusively
@@ -236,7 +239,9 @@ export function registerPlayerCommands() {
 
     try {
       const axios = await import("axios");
-      const response = await axios.default.get<CodeTour>(url);
+      const response = await axios.default.get<CodeTour>(url, {
+        maxContentLength: MAX_TOUR_BYTES
+      });
       const tour = response.data;
       tour.id = url;
       startCodeTour(tour);
